@@ -1,0 +1,41 @@
+:root {
+  --ink: #163028;
+  --brass: #c45c26;
+  --leaf: #1f4d3a;
+  --wash: #e7efe4;
+  --paper: #f7f3e8;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  min-height: 100%;
+}
+
+body {
+  font-family: "Source Sans 3", sans-serif;
+  color: var(--ink);
+  background:
+    radial-gradient(1200px 700px at 12% -10%, rgba(196, 92, 38, 0.18), transparent 55%),
+    radial-gradient(900px 600px at 100% 0%, rgba(31, 77, 58, 0.22), transparent 50%),
+    linear-gradient(160deg, #d8e4d4 0%, var(--paper) 42%, #cfd9c8 100%);
+}
+
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.35;
+  background-image: repeating-linear-gradient(
+    90deg,
+    transparent 0,
+    transparent 47px,
+    rgba(22, 48, 40, 0.04) 48px
+  );
+}
