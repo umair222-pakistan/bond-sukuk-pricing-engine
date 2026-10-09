@@ -58,9 +58,9 @@ Auth account before its profile is updated.
      license-key webhooks)
    - Optionally set `LEMONSQUEEZY_ALLOW_TEST_MODE=true` only on a non-production
      deployment to accept test-mode license events. Production ignores them.
-3. Deploy this repository with its **root directory set to the repository root**.
-   The root `vercel.json` builds the frontend from `frontend/` and exposes the
-   Python functions in `api/`.
+3. In Vercel, set the project **Root Directory** to `frontend`. The Vite build
+   outputs `dist/`; Vercel discovers the Python functions under `frontend/api/`
+   and the shared `frontend/license_service.py` module.
 4. In Lemon Squeezy, create a webhook pointing to
    `https://noorfinance.vercel.app/api/webhook/lemonsqueezy`, using the same
    signing secret as `LEMONSQUEEZY_WEBHOOK_SECRET`. Subscribe to
