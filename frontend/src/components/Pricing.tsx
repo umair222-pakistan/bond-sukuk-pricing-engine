@@ -6,14 +6,15 @@ export default function Pricing() {
   const navigate = useNavigate();
   const handleBuy = (url: string) => {
     const email = user?.email?.trim();
-    if (!email) {
+    if (!email || !user?.id) {
       navigate("/signup?next=/pricing");
       return;
     }
 
     const checkoutUrl = new URL(url);
-    checkoutUrl.searchParams.set("checkout[custom][email]", email);
     checkoutUrl.searchParams.set("checkout[email]", email);
+    checkoutUrl.searchParams.set("checkout[custom][user_id]", user.id);
+    checkoutUrl.searchParams.set("checkout[custom][email]", email);
     window.location.href = checkoutUrl.toString();
   };
 
