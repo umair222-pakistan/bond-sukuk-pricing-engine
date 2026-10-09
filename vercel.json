@@ -3,8 +3,6 @@
   "buildCommand": "cd frontend && npm run build",
   "outputDirectory": "frontend/dist",
   "rewrites": [
-    { "source": "/api/license/:path*", "destination": "/api/license/:path*" },
-    { "source": "/api/webhook/:path*", "destination": "/api/webhook/:path*" },
     { "source": "/(.*)", "destination": "/" }
   ]
 }

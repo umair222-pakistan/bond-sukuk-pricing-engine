@@ -222,7 +222,7 @@ class handler(BaseHTTPRequestHandler):
         self._respond(200, {"ok": True})
 
     def do_GET(self) -> None:
-        self._respond(405, {"error": "Method not allowed."})
+        self._respond(200, {"status": "webhook alive"})
 
     def _send_cors_headers(self) -> None:
         self.send_header("Access-Control-Allow-Origin", "*")
