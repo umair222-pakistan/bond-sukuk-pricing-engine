@@ -45,6 +45,6 @@ export default function Pricing() {
 
 function checkoutLink(link: string, email: string) {
   const checkoutUrl = new URL(link);
-  checkoutUrl.searchParams.set("checkout[custom][email]", email);
+  checkoutUrl.searchParams.set("checkout[email]", email);
   return checkoutUrl.toString();
 }

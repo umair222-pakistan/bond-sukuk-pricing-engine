@@ -25,13 +25,13 @@ import "./site.css";
 import Pricing from "./components/Pricing";
 
 function LicensedCalculator({ children }: { children: ReactNode }) {
-  const { hasLicense, isLoading } = useLicense();
+  const { error, hasLicense, isAdmin, isLoading, userEmail } = useLicense();
 
   if (isLoading) {
     return <div style={{padding: "40px", textAlign: "center"}}>Loading...</div>;
   }
   if (!hasLicense) {
-    return <LicenseGate />;
+    return <LicenseGate error={error} isAdmin={isAdmin} userEmail={userEmail} />;
   }
 
   return <>{children}</>;
