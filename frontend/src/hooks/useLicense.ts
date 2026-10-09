@@ -1,48 +1,69 @@
 import { useEffect, useState } from "react";
+import { useAuth } from "../context/AuthContext";
 import { useAdmin } from "./useAdmin";
 
 export function useLicense() {
   const [hasLicense, setHasLicense] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [checkedEmail, setCheckedEmail] = useState<string | null>(null);
+  const { user } = useAuth();
   const { isAdmin } = useAdmin();
+  const userEmail = user?.email?.toLowerCase().trim() ?? "";
+  const licenseKey = userEmail ? `noorfinance_license_${userEmail}` : "";
+  const expiryKey = userEmail ? `noorfinance_expiry_${userEmail}` : "";
 
   useEffect(() => {
     if (isAdmin) {
       setHasLicense(true);
+      setCheckedEmail(userEmail);
       setIsLoading(false);
       return;
     }
 
-    let licenseIsValid = false;
-    const license = localStorage.getItem('noorfinance_license');
-    const expiry = localStorage.getItem('noorfinance_license_expiry');
-
-    if (license && expiry) {
-      const expiryDate = new Date(expiry);
-      if (!Number.isNaN(expiryDate.getTime()) && expiryDate > new Date()) {
-        licenseIsValid = true;
-      } else {
-        localStorage.removeItem('noorfinance_license');
-        localStorage.removeItem('noorfinance_license_expiry');
-      }
+    setHasLicense(false);
+    if (!userEmail) {
+      setCheckedEmail(userEmail);
+      setIsLoading(false);
+      return;
     }
 
-    const params = new URLSearchParams(window.location.search);
-    setHasLicense(licenseIsValid || params.get('free') === 'true');
+    const license = localStorage.getItem(licenseKey);
+    const expiry = localStorage.getItem(expiryKey);
+    const expiryDate = expiry ? new Date(expiry) : null;
+    const licenseIsValid = Boolean(
+      license &&
+      expiryDate &&
+      !Number.isNaN(expiryDate.getTime()) &&
+      expiryDate > new Date(),
+    );
+
+    if (!licenseIsValid && (license || expiry)) {
+      localStorage.removeItem(licenseKey);
+      localStorage.removeItem(expiryKey);
+    }
+
+    setHasLicense(licenseIsValid);
+    setCheckedEmail(userEmail);
     setIsLoading(false);
-  }, [isAdmin]);
+  }, [expiryKey, isAdmin, licenseKey, userEmail]);
 
   const activateLicense = (key: string) => {
-    if (key.length >= 10) {
+    if (userEmail && key.trim().length >= 10) {
       const expiry = new Date();
-      expiry.setDate(expiry.getDate() + 30);
-      localStorage.setItem('noorfinance_license', key);
-      localStorage.setItem('noorfinance_license_expiry', expiry.toISOString());
+      expiry.setDate(expiry.getDate() + 365);
+      localStorage.setItem(licenseKey, key.trim());
+      localStorage.setItem(expiryKey, expiry.toISOString());
       setHasLicense(true);
       return true;
     }
     return false;
   };
 
-  return { hasLicense, isLoading, activateLicense, isAdmin };
+  return {
+    hasLicense,
+    isLoading: isLoading || checkedEmail !== userEmail,
+    activateLicense,
+    isAdmin,
+    userEmail,
+  };
 }

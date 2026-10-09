@@ -1,10 +1,15 @@
 import { useState, type FormEvent } from "react";
-import { Link, Navigate, useNavigate } from "react-router-dom";
+import { Link, Navigate, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 
 export default function Signup() {
   const { user, loading, authError, configurationError, signUp } = useAuth();
+  const location = useLocation();
   const navigate = useNavigate();
+  const requestedNext = new URLSearchParams(location.search).get("next");
+  const nextPath = requestedNext?.startsWith("/") && !requestedNext.startsWith("//")
+    ? requestedNext
+    : "/dashboard";
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -13,7 +18,7 @@ export default function Signup() {
   const [submitting, setSubmitting] = useState(false);
 
   if (loading) return <div className="auth-loading" role="status">Checking your session…</div>;
-  if (user) return <Navigate to="/dashboard" replace />;
+  if (user) return <Navigate to={nextPath} replace />;
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -32,7 +37,7 @@ export default function Signup() {
     try {
       const signedIn = await signUp(email.trim(), password);
       if (signedIn) {
-        navigate("/dashboard", { replace: true });
+        navigate(nextPath, { replace: true });
       } else {
         setNotice("Account created. Check your email for a confirmation link before signing in.");
       }
@@ -75,7 +80,7 @@ export default function Signup() {
             {submitting ? "Creating account…" : "Create Account"}
           </button>
         </form>
-        <p className="auth-switch">Already have an account? <Link to="/login">Sign in</Link></p>
+        <p className="auth-switch">Already have an account? <Link to={`/login?next=${encodeURIComponent(nextPath)}`}>Sign in</Link></p>
       </section>
     </div>
   );

@@ -9,6 +9,10 @@ export default function Login() {
   const { user, loading, authError, configurationError, signIn } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
+  const requestedNext = new URLSearchParams(location.search).get("next");
+  const nextPath = requestedNext?.startsWith("/") && !requestedNext.startsWith("//")
+    ? requestedNext
+    : null;
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [rememberMe, setRememberMe] = useState(getRememberSession());
@@ -16,7 +20,7 @@ export default function Login() {
   const [submitting, setSubmitting] = useState(false);
 
   if (loading) return <div className="auth-loading" role="status">Checking your session…</div>;
-  if (user) return <Navigate to="/dashboard" replace />;
+  if (user) return <Navigate to={nextPath ?? "/dashboard"} replace />;
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -27,7 +31,7 @@ export default function Login() {
       localStorage.setItem("user_email", email.trim());
       localStorage.setItem("email", email.trim());
       const state = location.state as LoginLocationState | null;
-      navigate(state?.from?.pathname ?? "/dashboard", { replace: true });
+      navigate(nextPath ?? state?.from?.pathname ?? "/dashboard", { replace: true });
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Unable to sign in. Please try again.");
     } finally {
@@ -65,7 +69,7 @@ export default function Login() {
             {submitting ? "Signing in…" : "Sign In"}
           </button>
         </form>
-        <p className="auth-switch">Don’t have an account? <Link to="/signup">Create account</Link></p>
+        <p className="auth-switch">Don’t have an account? <Link to={`/signup?next=${encodeURIComponent(nextPath ?? "/dashboard")}`}>Create account</Link></p>
       </section>
     </div>
   );
