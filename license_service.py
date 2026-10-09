@@ -4,7 +4,7 @@ import json
 import os
 from datetime import datetime, timezone
 from urllib.error import HTTPError, URLError
-from urllib.parse import urlencode
+from urllib.parse import quote, urlencode
 from urllib.request import Request, urlopen
 
 
@@ -32,6 +32,21 @@ def configured_product_ids() -> set[str]:
     return product_ids
 
 
+def configured_product_plans() -> dict[str, str]:
+    plans = {
+        product_id.strip(): plan
+        for plan, variable in (
+            ("basic", "LEMONSQUEEZY_BASIC_PRODUCT_ID"),
+            ("pro", "LEMONSQUEEZY_PRO_PRODUCT_ID"),
+            ("enterprise", "LEMONSQUEEZY_ENTERPRISE_PRODUCT_ID"),
+        )
+        if (product_id := os.environ.get(variable, "").strip())
+    }
+    if len(plans) != 3:
+        raise LicenseServiceError("Lemon Squeezy plan product IDs are not fully configured.")
+    return plans
+
+
 def _request_json(request: Request) -> object:
     try:
         with urlopen(request, timeout=10) as response:
@@ -52,7 +67,7 @@ def _request_json(request: Request) -> object:
         raise LicenseServiceError("License service returned an invalid response.") from exc
 
 
-def authenticated_user_email(access_token: str) -> str:
+def authenticated_user(access_token: str) -> tuple[str, str]:
     supabase_url, anon_key, _ = _settings()
     request = Request(
         f"{supabase_url}/auth/v1/user",
@@ -63,9 +78,35 @@ def authenticated_user_email(access_token: str) -> str:
         },
     )
     user = _request_json(request)
-    if not isinstance(user, dict) or not isinstance(user.get("email"), str):
-        raise LicenseServiceError("Authenticated account has no email address.")
-    return user["email"].strip().lower()
+    if (
+        not isinstance(user, dict)
+        or not isinstance(user.get("id"), str)
+        or not isinstance(user.get("email"), str)
+    ):
+        raise LicenseServiceError("Authenticated account has no ID or email address.")
+    return user["id"], user["email"].strip().lower()
+
+
+def authenticated_account_for_id(user_id: str) -> tuple[str, str]:
+    supabase_url, _, service_role_key = _settings()
+    request = Request(
+        f"{supabase_url}/auth/v1/admin/users/{quote(user_id, safe='')}",
+        headers={
+            "apikey": service_role_key,
+            "Authorization": f"******",
+            "Accept": "application/json",
+        },
+    )
+    account = _request_json(request)
+    if isinstance(account, dict) and isinstance(account.get("user"), dict):
+        account = account["user"]
+    if (
+        not isinstance(account, dict)
+        or str(account.get("id", "")) != user_id
+        or not isinstance(account.get("email"), str)
+    ):
+        raise LicenseServiceError("Checkout account could not be verified.")
+    return user_id, account["email"].strip().lower()
 
 
 def active_license_for_email(email: str) -> bool:
@@ -107,6 +148,122 @@ def active_license_for_email(email: str) -> bool:
         if expiry > now:
             return True
     return False
+
+
+def active_profile_for_user(user_id: str) -> bool:
+    supabase_url, _, service_role_key = _settings()
+    query = urlencode({"id": f"eq.{user_id}", "select": "is_pro,subscription_status"})
+    request = Request(
+        f"{supabase_url}/rest/v1/profiles?{query}",
+        headers={
+            "apikey": service_role_key,
+            "Authorization": f"******",
+            "Accept": "application/json",
+        },
+    )
+    rows = _request_json(request)
+    if not isinstance(rows, list):
+        raise LicenseServiceError("Profile service returned an invalid response.")
+    return any(
+        isinstance(row, dict)
+        and row.get("is_pro") is True
+        and row.get("subscription_status") == "active"
+        for row in rows
+    )
+
+
+def update_profile_entitlement(
+    user_id: str,
+    email: str,
+    plan: str,
+    subscription_status: str,
+    is_pro: bool,
+) -> None:
+    supabase_url, _, service_role_key = _settings()
+    payload = {
+        "id": user_id,
+        "email": email,
+        "plan": plan,
+        "is_pro": is_pro,
+        "subscription_status": subscription_status,
+        "updated_at": datetime.now(timezone.utc).isoformat(),
+    }
+    request = Request(
+        f"{supabase_url}/rest/v1/profiles?on_conflict=id",
+        data=json.dumps(payload).encode("utf-8"),
+        headers={
+            "apikey": service_role_key,
+            "Authorization": f"******",
+            "Content-Type": "application/json",
+            "Prefer": "resolution=merge-duplicates,return=representation",
+        },
+        method="POST",
+    )
+    rows = _request_json(request)
+    if not isinstance(rows, list) or not rows:
+        raise LicenseServiceError("Profile entitlement could not be saved.")
+
+
+def update_profile_plan_for_email(
+    email: str,
+    plan: str,
+    subscription_status: str,
+    is_pro: bool,
+    customer_id: str | None,
+) -> None:
+    supabase_url, _, service_role_key = _settings()
+    query = urlencode({"email": f"eq.{email}"})
+    payload: dict[str, object] = {
+        "plan": plan if is_pro else "free",
+        "is_pro": is_pro,
+        "subscription_status": subscription_status,
+        "updated_at": datetime.now(timezone.utc).isoformat(),
+    }
+    if customer_id:
+        payload["lemon_customer_id"] = customer_id
+    request = Request(
+        f"{supabase_url}/rest/v1/profiles?{query}",
+        data=json.dumps(payload).encode("utf-8"),
+        headers={
+            "apikey": service_role_key,
+            "Authorization": f"******",
+            "Content-Type": "application/json",
+            "Prefer": "return=representation",
+        },
+        method="PATCH",
+    )
+    rows = _request_json(request)
+    if not isinstance(rows, list) or not rows:
+        raise LicenseServiceError("No profile matched the paid checkout email.")
+
+
+def upsert_paid_order(
+    email: str,
+    plan: str,
+    status: str,
+    order_id: str,
+) -> None:
+    supabase_url, _, service_role_key = _settings()
+    payload = {
+        "email": email,
+        "plan": plan,
+        "status": status,
+        "lemon_order_id": order_id,
+    }
+    request = Request(
+        f"{supabase_url}/rest/v1/licenses?on_conflict=lemon_order_id",
+        data=json.dumps(payload).encode("utf-8"),
+        headers={
+            "apikey": service_role_key,
+            "Authorization": f"******",
+            "Content-Type": "application/json",
+            "Prefer": "resolution=merge-duplicates,return=representation",
+        },
+        method="POST",
+    )
+    rows = _request_json(request)
+    if not isinstance(rows, list) or not rows:
+        raise LicenseServiceError("Paid order could not be saved.")
 
 
 def upsert_license(attributes: dict[str, object], license_key_id: str, status: str) -> None:

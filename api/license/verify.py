@@ -5,8 +5,9 @@ from http.server import BaseHTTPRequestHandler
 
 from license_service import (
     LicenseServiceError,
+    active_profile_for_user,
     active_license_for_email,
-    authenticated_user_email,
+    authenticated_user,
 )
 
 
@@ -18,8 +19,8 @@ class handler(BaseHTTPRequestHandler):
             return
 
         try:
-            email = authenticated_user_email(authorization[7:].strip())
-            has_license = active_license_for_email(email)
+            user_id, email = authenticated_user(authorization[7:].strip())
+            has_license = active_profile_for_user(user_id) or active_license_for_email(email)
         except LicenseServiceError as exc:
             status = 401 if str(exc) == "Authentication failed." else 503
             self._respond(status, {"error": str(exc)})
