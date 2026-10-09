@@ -71,16 +71,18 @@ export default function Calculators() {
         <p>Choose a finance structure to explore. More tools are on the way.</p>
       </div>
       <div className="marketplace-controls">
-        <label className="calculator-search">
-          <span className="search-icon" aria-hidden="true">⌕</span>
+        <div style={{maxWidth: "400px", position: "relative", margin: "20px 0"}}>
+          <span style={{position: "absolute", left: "12px", top: "50%", transform: "translateY(-50%)", color: "#888"}} aria-hidden="true">🔍</span>
           <input
-            type="search"
+            type="text"
+            style={{width: "100%", padding: "12px 12px 12px 40px", border: "1px solid #ddd", borderRadius: "8px", fontSize: "14px", outline: "none"}}
+            className="search-input"
             value={search}
             onChange={(event) => setSearch(event.target.value)}
             placeholder="Search calculators"
             aria-label="Search calculators"
           />
-        </label>
+        </div>
         <div className="calculator-filters" role="group" aria-label="Filter calculators by category">
           {filters.map((item) => (
             <button
