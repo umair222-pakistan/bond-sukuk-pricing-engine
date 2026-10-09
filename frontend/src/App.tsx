@@ -3,7 +3,6 @@ import About from "./pages/About";
 import Calculators from "./pages/Calculators";
 import Dashboard from "./pages/Dashboard";
 import Home from "./pages/Home";
-import Pricing from "./pages/Pricing";
 import BondSukukCalculator from "./calculators/BondSukukCalculator";
 import MurabahaCalculator from "./calculators/MurabahaCalculator";
 import ZakatCalculator from "./calculators/ZakatCalculator";
@@ -19,6 +18,7 @@ import Login from "./pages/Login";
 import Signup from "./pages/Signup";
 import { AuthProvider } from "./context/AuthContext";
 import "./site.css";
+import Pricing from "./components/Pricing";
 
 export default function App() {
   return (
@@ -29,6 +29,7 @@ export default function App() {
           <main className="site-main">
             <Routes>
               <Route path="/" element={<Home />} />
+              <Route path="/pricing" element={<Pricing />} />
               <Route path="/calculators" element={<Calculators />} />
               <Route
                 path="/calculators/bond-sukuk"
@@ -117,7 +118,6 @@ export default function App() {
                   </ProtectedRoute>
                 }
               />
-              <Route path="/pricing" element={<Pricing />} />
               <Route path="/about" element={<About />} />
               <Route path="*" element={<Home />} />
             </Routes>
