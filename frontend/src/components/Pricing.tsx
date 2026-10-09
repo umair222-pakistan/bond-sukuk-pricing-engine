@@ -4,6 +4,19 @@ import { useAuth } from "../context/AuthContext";
 export default function Pricing() {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const handleBuy = (url: string) => {
+    const email = user?.email?.trim();
+    if (!email) {
+      navigate("/signup?next=/pricing");
+      return;
+    }
+
+    const checkoutUrl = new URL(url);
+    checkoutUrl.searchParams.set("checkout[custom][email]", email);
+    checkoutUrl.searchParams.set("checkout[email]", email);
+    window.location.href = checkoutUrl.toString();
+  };
+
   const plans = [
     { name: "Basic", price: "2,499", period: "/month", tag: "For learners", features: ["All 5 calculators (Zakat, Murabaha, Ijara)", "Shariah PDF reports", "AAOIFI compliant", "Email support"], link: "https://noorfinance-pk.lemonsqueezy.com/checkout/buy/a62422df-aef7-4a72-8054-2018913c3549", cta: "Get Basic", popular: false, color: "#ffffff" },
     { name: "Pro", price: "5,499", period: "/month", tag: "For businesses", features: ["Everything in Basic", "Unlimited calculations", "Team (5 users) + API", "Priority WhatsApp support"], link: "https://noorfinance-pk.lemonsqueezy.com/checkout/buy/4103e815-a388-4058-854b-faaa5d96317c", cta: "Get Pro", popular: true, color: "#FFFEF9" },
@@ -24,27 +37,14 @@ export default function Pricing() {
             <p style={{color: "#888", fontSize: "14px", marginTop: "8px"}}>{p.tag}</p>
             <div style={{margin: "24px 0"}}><span style={{fontSize: "36px", fontWeight: "900", color: "#0A2A12"}}>PKR {p.price}</span><span style={{color: "#888"}}>{p.period}</span></div>
             <ul style={{textAlign: "left", marginBottom: "24px", listStyle: "none", padding: 0}}>{p.features.map((f) => <li key={f} style={{marginBottom: "10px", fontSize: "14px"}}>✓ {f}</li>)}</ul>
-            <a
-              href={user?.email ? checkoutLink(p.link, user.email) : "/signup?next=/pricing"}
-              target={user?.email ? "_blank" : undefined}
-              rel={user?.email ? "noreferrer" : undefined}
-              onClick={(event) => {
-                if (!user?.email) {
-                  event.preventDefault();
-                  navigate("/signup?next=/pricing");
-                }
-              }}
-              style={{display: "block", textAlign: "center", background: p.popular ? "#0A2A12" : "white", color: p.popular ? "white" : "#0A2A12", border: p.popular ? "none" : "2px solid #0A2A12", padding: "14px", borderRadius: "12px", fontWeight: "bold", textDecoration: "none"}}
-            >{p.cta} →</a>
+            <button
+              type="button"
+              onClick={() => handleBuy(p.link)}
+              style={{display: "block", width: "100%", textAlign: "center", background: p.popular ? "#0A2A12" : "white", color: p.popular ? "white" : "#0A2A12", border: p.popular ? "none" : "2px solid #0A2A12", padding: "14px", borderRadius: "12px", fontWeight: "bold", cursor: "pointer"}}
+            >{p.cta} →</button>
           </div>
         ))}
       </div>
     </div>
   );
-}
-
-function checkoutLink(link: string, email: string) {
-  const checkoutUrl = new URL(link);
-  checkoutUrl.searchParams.set("checkout[email]", email);
-  return checkoutUrl.toString();
 }

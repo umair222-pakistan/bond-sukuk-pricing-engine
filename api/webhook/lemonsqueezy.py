@@ -57,6 +57,14 @@ class handler(BaseHTTPRequestHandler):
         if not isinstance(attributes, dict) or not isinstance(license_key_id, (str, int)):
             self._respond(400, {"error": "Invalid license key event."})
             return
+        attributes = dict(attributes)
+        email = attributes.get("user_email")
+        meta = payload.get("meta")
+        custom_data = meta.get("custom_data") if isinstance(meta, dict) else None
+        if not isinstance(email, str) or not email.strip():
+            email = custom_data.get("email") if isinstance(custom_data, dict) else None
+        if isinstance(email, str) and email.strip():
+            attributes["user_email"] = email.strip().lower()
 
         try:
             allowed_product_ids = configured_product_ids()
