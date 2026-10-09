@@ -24,6 +24,8 @@ export default function Login() {
     setSubmitting(true);
     try {
       await signIn(email.trim(), password, rememberMe);
+      localStorage.setItem("user_email", email.trim());
+      localStorage.setItem("email", email.trim());
       const state = location.state as LoginLocationState | null;
       navigate(state?.from?.pathname ?? "/dashboard", { replace: true });
     } catch (cause) {

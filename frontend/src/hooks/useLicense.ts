@@ -1,17 +1,26 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from "react";
+import { useAdmin } from "./useAdmin";
 
 export function useLicense() {
   const [hasLicense, setHasLicense] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const { isAdmin } = useAdmin();
 
   useEffect(() => {
+    if (isAdmin) {
+      setHasLicense(true);
+      setIsLoading(false);
+      return;
+    }
+
+    let licenseIsValid = false;
     const license = localStorage.getItem('noorfinance_license');
     const expiry = localStorage.getItem('noorfinance_license_expiry');
-    
+
     if (license && expiry) {
       const expiryDate = new Date(expiry);
-      if (expiryDate > new Date()) {
-        setHasLicense(true);
+      if (!Number.isNaN(expiryDate.getTime()) && expiryDate > new Date()) {
+        licenseIsValid = true;
       } else {
         localStorage.removeItem('noorfinance_license');
         localStorage.removeItem('noorfinance_license_expiry');
@@ -19,12 +28,9 @@ export function useLicense() {
     }
 
     const params = new URLSearchParams(window.location.search);
-    if (params.get('free') === 'true') {
-      setHasLicense(true);
-    }
-
+    setHasLicense(licenseIsValid || params.get('free') === 'true');
     setIsLoading(false);
-  }, []);
+  }, [isAdmin]);
 
   const activateLicense = (key: string) => {
     if (key.length >= 10) {
@@ -38,5 +44,5 @@ export function useLicense() {
     return false;
   };
 
-  return { hasLicense, isLoading, activateLicense };
+  return { hasLicense, isLoading, activateLicense, isAdmin };
 }

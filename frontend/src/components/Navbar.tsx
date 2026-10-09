@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link, NavLink, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+import { useAdmin } from "../hooks/useAdmin";
 
 const links = [
   { to: "/", label: "Home", end: true },
@@ -13,12 +14,15 @@ export default function Navbar() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
   const { user, loading, signOut } = useAuth();
+  const { isAdmin } = useAdmin();
   const navigate = useNavigate();
 
   async function handleSignOut() {
     setAuthError(null);
     try {
       await signOut();
+      localStorage.removeItem("user_email");
+      localStorage.removeItem("email");
       setMenuOpen(false);
       navigate("/");
     } catch (cause) {
@@ -61,7 +65,10 @@ export default function Navbar() {
               <NavLink className={({ isActive }) => `nav-link${isActive ? " active" : ""}`} to="/dashboard" onClick={() => setMenuOpen(false)}>
                 Dashboard
               </NavLink>
-              <span className="nav-user" title={user.email ?? undefined}>{user.email}</span>
+              <span className="nav-user" title={user.email ?? undefined}>
+                {user.email}
+                {isAdmin && <span style={{background: "#0A2A12", color: "white", padding: "2px 8px", borderRadius: "10px", fontSize: "10px", marginLeft: "6px"}}>ADMIN</span>}
+              </span>
               <button className="nav-auth-button" type="button" onClick={handleSignOut}>Logout</button>
             </>
           ) : !loading ? (
