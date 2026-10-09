@@ -1,58 +1,27 @@
-const plans = [
-  {
-    name: "Basic",
-    price: "2,499",
-    period: "/month",
-    desc: "Perfect for individuals & students learning Islamic finance",
-    features: ["All 5 calculators (Zakat, Murabaha, Ijara, etc)", "Shariah PDF reports with references", "GCC & Pakistan AAOIFI compliant", "Email support"],
-    link: "https://noorfinance-pk.lemonsqueezy.com/checkout/buy/a62422df-aef7-4a72-8054-2018913c3549",
-    cta: "Get Basic",
-    popular: false
-  },
-  {
-    name: "Pro",
-    price: "5,499",
-    period: "/month",
-    desc: "For businesses, startups & finance professionals",
-    features: ["Everything in Basic", "Unlimited calculations", "Team access (5 users)", "API access for integration", "Priority support + WhatsApp"],
-    link: "https://noorfinance-pk.lemonsqueezy.com/checkout/buy/4103e815-a388-4058-854b-faaa5d96317c",
-    cta: "Get Pro - Most Popular",
-    popular: true
-  },
-  {
-    name: "Enterprise",
-    price: "99,999",
-    period: " one-time",
-    desc: "For Islamic banks, fintechs & institutions",
-    features: ["Everything in Pro", "Custom Sukuk pricing engine", "On-premise deployment", "Unlimited team members", "Shariah Board consultation"],
-    link: "https://noorfinance-pk.lemonsqueezy.com/checkout/buy/96677fb3-2beb-44c4-93e3-02265efc66e8",
-    cta: "Get Enterprise",
-    popular: false
-  }
-];
-
 export default function Pricing() {
+  const plans = [
+    { name: "Basic", price: "2,499", period: "/month", tag: "For learners", features: ["All 5 calculators (Zakat, Murabaha, Ijara)", "Shariah PDF reports", "AAOIFI compliant", "Email support"], link: "https://noorfinance-pk.lemonsqueezy.com/checkout/buy/a62422df-aef7-4a72-8054-2018913c3549", cta: "Get Basic", popular: false, color: "#ffffff" },
+    { name: "Pro", price: "5,499", period: "/month", tag: "For businesses", features: ["Everything in Basic", "Unlimited calculations", "Team (5 users) + API", "Priority WhatsApp support"], link: "https://noorfinance-pk.lemonsqueezy.com/checkout/buy/4103e815-a388-4058-854b-faaa5d96317c", cta: "Get Pro", popular: true, color: "#FFFEF9" },
+    { name: "Enterprise", price: "99,999", period: " lifetime", tag: "For banks", features: ["Everything in Pro", "Custom Sukuk engine", "On-premise deployment", "Shariah Board consultation"], link: "https://noorfinance-pk.lemonsqueezy.com/checkout/buy/96677fb3-2beb-44c4-93e3-02265efc66e8", cta: "Get Enterprise", popular: false, color: "#ffffff" }
+  ];
+
   return (
-    <div className="w-full bg-[#FFFEF9] py-16 px-4">
-      <div className="max-w-6xl mx-auto">
-        <div className="text-center mb-12">
-          <h1 className="text-4xl md:text-5xl font-bold text-[#0A2A12] mb-4">Simple, Shariah-Compliant Pricing</h1>
-          <p className="text-gray-600 text-lg">No hidden fees. Riba-free. Cancel anytime.</p>
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-          {plans.map((plan) => (
-            <div key={plan.name} className={`relative bg-white rounded-3xl p-8 flex flex-col ${plan.popular ? 'border-2 border-[#0A2A12] shadow-2xl scale-105' : 'border border-gray-200 shadow-lg'}`}>
-              {plan.popular && <div className="absolute -top-4 left-1/2 -translate-x-1/2 bg-[#0A2A12] text-white px-4 py-1 rounded-full text-sm font-bold">Most Popular</div>}
-              <h3 className="text-2xl font-bold text-[#0A2A12]">{plan.name}</h3>
-              <p className="text-sm text-gray-500 mt-2 min-h-[40px]">{plan.desc}</p>
-              <div className="mt-6 mb-6"><span className="text-4xl font-extrabold text-[#0A2A12]">PKR {plan.price}</span><span className="text-gray-500 text-sm">{plan.period}</span></div>
-              <ul className="space-y-3 mb-8 flex-1">
-                {plan.features.map((f) => <li key={f} className="flex gap-2 text-sm text-gray-700"><span className="text-green-600 font-bold">✓</span> {f}</li>)}
-              </ul>
-              <a href={plan.link} target="_blank" rel="noreferrer" className={`w-full text-center py-4 rounded-xl font-bold transition ${plan.popular ? 'bg-[#0A2A12] text-white hover:bg-black' : 'bg-white border-2 border-[#0A2A12] text-[#0A2A12] hover:bg-[#0A2A12] hover:text-white'}`}>{plan.cta} →</a>
-            </div>
-          ))}
-        </div>
+    <div style={{background: "#FFFEF9", minHeight: "100vh", padding: "60px 20px"}}>
+      <div style={{maxWidth: "1200px", margin: "0 auto", textAlign: "center", marginBottom: "50px"}}>
+        <h1 style={{fontSize: "48px", fontWeight: "900", color: "#0A2A12"}}>Simple, Shariah-Compliant Pricing</h1>
+        <p style={{color: "#666", fontSize: "18px", marginTop: "10px"}}>No hidden fees. Riba-free. Cancel anytime.</p>
+      </div>
+      <div style={{maxWidth: "1200px", margin: "0 auto", display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: "30px"}}>
+        {plans.map((p) => (
+          <div key={p.name} style={{background: "white", borderRadius: "24px", padding: "32px", border: p.popular ? "3px solid #0A2A12" : "1px solid #e5e7eb", boxShadow: p.popular ? "0 20px 40px rgba(0,0,0,0.15)" : "0 4px 20px rgba(0,0,0,0.05)", transform: p.popular ? "scale(1.05)" : "none", position: "relative"}}>
+            {p.popular && <div style={{position: "absolute", top: "-14px", left: "50%", transform: "translateX(-50%)", background: "#0A2A12", color: "white", padding: "4px 16px", borderRadius: "20px", fontSize: "12px", fontWeight: "bold"}}>MOST POPULAR</div>}
+            <h3 style={{fontSize: "24px", fontWeight: "800", color: "#0A2A12"}}>{p.name}</h3>
+            <p style={{color: "#888", fontSize: "14px", marginTop: "8px"}}>{p.tag}</p>
+            <div style={{margin: "24px 0"}}><span style={{fontSize: "36px", fontWeight: "900", color: "#0A2A12"}}>PKR {p.price}</span><span style={{color: "#888"}}>{p.period}</span></div>
+            <ul style={{textAlign: "left", marginBottom: "24px", listStyle: "none", padding: 0}}>{p.features.map((f) => <li key={f} style={{marginBottom: "10px", fontSize: "14px"}}>✓ {f}</li>)}</ul>
+            <a href={p.link} target="_blank" style={{display: "block", textAlign: "center", background: p.popular ? "#0A2A12" : "white", color: p.popular ? "white" : "#0A2A12", border: p.popular ? "none" : "2px solid #0A2A12", padding: "14px", borderRadius: "12px", fontWeight: "bold", textDecoration: "none"}}>{p.cta} →</a>
+          </div>
+        ))}
       </div>
     </div>
   );
