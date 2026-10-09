@@ -1,9 +1,9 @@
 :root {
   --ink: #163028;
   --brass: #c45c26;
-  --leaf: #1f4d3a;
+  --leaf: #1A3D2E;
   --wash: #e7efe4;
-  --paper: #f7f3e8;
+  --paper: #F5F5E8;
 }
 
 * {
@@ -20,10 +20,7 @@ body,
 body {
   font-family: "Source Sans 3", sans-serif;
   color: var(--ink);
-  background:
-    radial-gradient(1200px 700px at 12% -10%, rgba(196, 92, 38, 0.18), transparent 55%),
-    radial-gradient(900px 600px at 100% 0%, rgba(31, 77, 58, 0.22), transparent 50%),
-    linear-gradient(160deg, #d8e4d4 0%, var(--paper) 42%, #cfd9c8 100%);
+  background: var(--paper);
 }
 
 body::before {
