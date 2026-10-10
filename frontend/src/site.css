@@ -1076,7 +1076,8 @@ a {
 }
 
 .auth-form input[type="email"],
-.auth-form input[type="password"] {
+.auth-form input[type="password"],
+.auth-form input[type="text"] {
   width: 100%;
   min-height: 46px;
   padding: 10px 12px;

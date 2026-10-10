@@ -152,6 +152,50 @@ def active_license_for_email(email: str) -> bool:
     return False
 
 
+def activate_license(access_token: str, license_key: str) -> str:
+    _, email = authenticated_user(access_token)
+    supabase_url, _, service_role_key = _settings()
+    query = urlencode(
+        {
+            "license_key_id": f"eq.{license_key}",
+            "status": "eq.active",
+            "select": "user_email,expires_at",
+            "limit": "2",
+        }
+    )
+    request = Request(
+        f"{supabase_url}/rest/v1/noorfinance_licenses?{query}",
+        headers={
+            "apikey": service_role_key,
+            "Authorization": f"Bearer {service_role_key}",
+            "Accept": "application/json",
+        },
+    )
+    rows = _request_json(request)
+    if not isinstance(rows, list) or len(rows) != 1 or not isinstance(rows[0], dict):
+        raise LicenseServiceError("License key is invalid or inactive.")
+
+    license_record = rows[0]
+    license_email = license_record.get("user_email")
+    if not isinstance(license_email, str) or license_email.strip().lower() != email:
+        raise LicenseServiceError("License key is invalid or inactive.")
+
+    expires_at = license_record.get("expires_at")
+    if expires_at is not None:
+        if not isinstance(expires_at, str):
+            raise LicenseServiceError("License key is invalid or inactive.")
+        try:
+            expiry = datetime.fromisoformat(expires_at.replace("Z", "+00:00"))
+        except ValueError as exc:
+            raise LicenseServiceError("License key is invalid or inactive.") from exc
+        if expiry.tzinfo is None:
+            expiry = expiry.replace(tzinfo=timezone.utc)
+        if expiry <= datetime.now(timezone.utc):
+            raise LicenseServiceError("License key is invalid or inactive.")
+
+    return email
+
+
 def active_profile_for_user(user_id: str) -> bool:
     supabase_url, _, service_role_key = _settings()
     query = urlencode({"id": f"eq.{user_id}", "select": "is_pro,subscription_status"})

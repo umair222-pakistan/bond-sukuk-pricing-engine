@@ -1,37 +1,95 @@
-import { useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { useLicense } from '../hooks/useLicense';
+import { useState, type FormEvent } from "react";
+import { Link } from "react-router-dom";
+import { useAuth } from "../context/AuthContext";
+import { useLicense } from "../hooks/useLicense";
 
 export default function Activate() {
-  const navigate = useNavigate();
-  const { error, hasLicense, isLoading, refreshLicense, userEmail } = useLicense();
+  const { session, user, loading } = useAuth();
+  const { hasLicense, refreshLicense } = useLicense();
+  const [licenseKey, setLicenseKey] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
 
-  useEffect(() => {
-    if (!isLoading && !userEmail) {
-      navigate('/signup?next=/activate', { replace: true });
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setError(null);
+    setSuccess(false);
+    setSubmitting(true);
+
+    try {
+      const normalizedKey = licenseKey.trim().toUpperCase();
+      const response = await fetch("/api/license/activate", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${session?.access_token ?? ""}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ licenseKey: normalizedKey }),
+      });
+      const result = (await response.json()) as { ok?: boolean; error?: string };
+      if (!response.ok || result.ok !== true) {
+        throw new Error(result.error ?? "Unable to activate this license key.");
+      }
+
+      window.localStorage.setItem("noorfinance-license-key", normalizedKey);
+      setSuccess(true);
+      await refreshLicense();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Unable to activate this license key.");
+    } finally {
+      setSubmitting(false);
     }
-  }, [isLoading, navigate, userEmail]);
-
-  useEffect(() => {
-    if (!isLoading && hasLicense) {
-      navigate('/calculators/bond-sukuk', { replace: true });
-    }
-  }, [hasLicense, isLoading, navigate]);
-
-  if (isLoading || !userEmail) {
-    return <div style={{padding: '40px', textAlign: 'center'}}>Checking your account...</div>;
   }
 
   return (
-    <div style={{ minHeight: '80vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#FFFEF9' }}>
-      <div style={{ background: 'white', padding: '32px', borderRadius: '16px', width: '100%', maxWidth: '400px', border: '1px solid #e5e7eb' }}>
-        <h1 style={{ fontSize: '22px', fontWeight: '800', color: '#0A2A12', marginBottom: '16px' }}>Confirming Your License</h1>
-        <p style={{ marginBottom: '16px' }}>Checking purchase for: <b>{userEmail}</b></p>
-        <p role="status" style={{ marginBottom: '16px', color: error ? '#9b1c1c' : '#666' }}>
-          {error ?? 'Your purchase is being checked. If you just completed checkout, allow a moment for the payment notification to arrive.'}
+    <div className="auth-page">
+      <section className="auth-card">
+        <p className="eyebrow">NOORFINANCE LICENSE</p>
+        <h1>Activate your license</h1>
+        <p className="auth-intro">
+          Enter the license key from your purchase email to unlock your account.
         </p>
-        <button onClick={() => void refreshLicense()} disabled={isLoading} style={{ width: '100%', background: '#0A2A12', color: 'white', padding: '12px', borderRadius: '8px', fontWeight: 'bold', border: 'none', cursor: 'pointer' }}>Check License Status</button>
-      </div>
+
+        {loading ? <p role="status">Checking your account…</p> : null}
+        {!loading && !user ? (
+          <p className="auth-error" role="alert">
+            Sign in with the email address used for your purchase before activating your key.{" "}
+            <Link to="/login?next=/activate">Sign in</Link>
+          </p>
+        ) : null}
+        {user && hasLicense ? (
+          <p className="auth-success" role="status">
+            Your NoorFinance license is active. You can now access the calculators.
+          </p>
+        ) : null}
+        {error ? <p className="auth-error" role="alert">{error}</p> : null}
+        {success ? <p className="auth-success" role="status">License activated successfully.</p> : null}
+
+        <form className="auth-form" onSubmit={handleSubmit}>
+          <label htmlFor="license-key">License key</label>
+          <input
+            id="license-key"
+            type="text"
+            autoComplete="off"
+            autoCapitalize="characters"
+            maxLength={40}
+            placeholder="NOOR-XXXXXXXX-…"
+            value={licenseKey}
+            onChange={(event) => setLicenseKey(event.target.value.toUpperCase())}
+            required
+            disabled={!user || submitting}
+            style={{ fontFamily: "monospace", letterSpacing: "0.04em" }}
+          />
+          <button
+            className="button-primary auth-submit"
+            type="submit"
+            disabled={!user || submitting || !licenseKey.trim()}
+          >
+            {submitting ? "Activating…" : "Activate License"}
+          </button>
+        </form>
+      </section>
     </div>
   );
 }

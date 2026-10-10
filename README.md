@@ -54,6 +54,7 @@ Auth account before its profile is updated.
    - `SUPABASE_ANON_KEY`
    - `SUPABASE_SERVICE_ROLE_KEY` (server-side only; never use a `VITE_` prefix)
    - `LEMONSQUEEZY_WEBHOOK_SECRET`
+   - `RESEND_API_KEY` (server-side key for sending issued license keys)
    - `LEMONSQUEEZY_PRODUCT_IDS` (comma-separated product IDs allowed for
      license-key webhooks)
    - Optionally set `LEMONSQUEEZY_ALLOW_TEST_MODE=true` only on a non-production
@@ -62,13 +63,20 @@ Auth account before its profile is updated.
    outputs `dist/`; Vercel discovers the Python functions under `frontend/api/`
    and the shared `frontend/license_service.py` module.
 4. In Lemon Squeezy, create a webhook pointing to
-   `https://noorfinance.vercel.app/api/webhooks/lemonsqueezy`, using the same
-   signing secret as `LEMONSQUEEZY_WEBHOOK_SECRET`. Subscribe to
-   `order_created`, `order_refunded`, `subscription_created`,
-   `subscription_updated`, `subscription_cancelled`, `subscription_expired`,
-   `subscription_paused`, `subscription_resumed`, and
-   `subscription_unpaused`.
-5. Set the successful checkout redirect to
+   `https://noorfinance.vercel.app/api/webhook/simple`, using the same signing
+   secret as `LEMONSQUEEZY_WEBHOOK_SECRET`. Subscribe to `order_created`,
+   `order_refunded`, `subscription_created`, `subscription_updated`,
+   `subscription_cancelled`, `subscription_expired`, `subscription_paused`,
+   `subscription_resumed`, and `subscription_unpaused`. The existing
+   `/api/webhooks/lemonsqueezy` handler is separate; do not configure both for
+   the same events unless both handlers are intentionally needed.
+5. Apply `20261010100000_noorfinance_license_webhook_idempotency.sql` before
+   enabling the simple endpoint. It requires a valid Lemon Squeezy signature,
+   persists keys in `noorfinance_licenses`, and emails issued keys. Its
+   implementation is under `frontend/api/` for the current Vercel frontend
+   Root Directory; `api/webhook/simple.js` is the repository-root compatibility
+   entry point.
+6. Set the successful checkout redirect to
    `https://noorfinance.vercel.app/activate` without license or email query
    parameters. The customer must complete checkout using the same email as
    their NoorFinance account.
@@ -80,10 +88,10 @@ ID using the Supabase service-role key. Profiles are matched against the
 verified purchaser email in the signed webhook. Local development of these
 Vercel functions requires the Vercel CLI (`vercel dev`) from the repository root.
 
-The webhook handler lives in the repository-root `api/` directory. The existing
-Vercel setup uses `frontend` as its Root Directory, so deploy this handler only
-after configuring Vercel to include the repository-root API function; otherwise
-the SPA rewrite may serve the frontend instead of the webhook.
+The legacy `/api/webhooks/lemonsqueezy` handler lives in the repository-root
+`api/` directory. The current Vercel setup uses `frontend` as its Root
+Directory, so the new `/api/webhook/simple` handler is served from
+`frontend/api/` without changing the existing deployment root.
 
 This repository is a Vite app with Vercel Python functions, not a Next.js
 App Router project. Frontend variables therefore use the `VITE_` prefix;
