@@ -1,5 +1,17 @@
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+
+function resolveCheckoutUrl(configured: string | undefined, fallback: string): string | null {
+  const candidate = configured?.trim() || fallback;
+  if (!candidate || candidate === "#") return null;
+  try {
+    const url = new URL(candidate);
+    return url.protocol === "https:" ? url.toString() : null;
+  } catch {
+    return null;
+  }
+}
 
 const plans = [
   {
@@ -14,10 +26,10 @@ const plans = [
       "AAOIFI compliant badge",
       "Email support",
     ],
-    url:
-      import.meta.env.NEXT_PUBLIC_LEMON_BASIC_URL ||
-      import.meta.env.VITE_LEMON_BASIC_URL ||
+    url: resolveCheckoutUrl(
+      import.meta.env.NEXT_PUBLIC_LEMON_BASIC_URL || import.meta.env.VITE_LEMON_BASIC_URL,
       "https://noorfinance-pk.lemonsqueezy.com/checkout/buy/a62422df-aef7-4a72-8054-2018913c3549",
+    ),
     cta: "Get Basic",
     popular: false,
   },
@@ -33,10 +45,10 @@ const plans = [
       "Team (5 users) + API",
       "Priority WhatsApp support",
     ],
-    url:
-      import.meta.env.NEXT_PUBLIC_LEMON_PRO_URL ||
-      import.meta.env.VITE_LEMON_PRO_URL ||
+    url: resolveCheckoutUrl(
+      import.meta.env.NEXT_PUBLIC_LEMON_PRO_URL || import.meta.env.VITE_LEMON_PRO_URL,
       "https://noorfinance-pk.lemonsqueezy.com/checkout/buy/4103e815-a388-4058-854b-faaa5d96317c",
+    ),
     cta: "Get Pro",
     popular: true,
   },
@@ -52,10 +64,10 @@ const plans = [
       "On-premise deployment option",
       "Shariah Board consultation",
     ],
-    url:
-      import.meta.env.NEXT_PUBLIC_LEMON_ENTERPRISE_URL ||
-      import.meta.env.VITE_LEMON_ENTERPRISE_URL ||
+    url: resolveCheckoutUrl(
+      import.meta.env.NEXT_PUBLIC_LEMON_ENTERPRISE_URL || import.meta.env.VITE_LEMON_ENTERPRISE_URL,
       "https://noorfinance-pk.lemonsqueezy.com/checkout/buy/96677fb3-2beb-44c4-93e3-02265efc66e8",
+    ),
     cta: "Get Enterprise",
     popular: false,
   },
@@ -74,8 +86,14 @@ if (
 export default function Pricing() {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const [checkoutUnavailable, setCheckoutUnavailable] = useState(false);
 
-  function handleBuy(url: string, plan: string) {
+  function handleBuy(url: string | null, plan: string) {
+    if (!url) {
+      console.warn(`License flow: no valid Lemon Squeezy checkout URL configured for ${plan}.`);
+      setCheckoutUnavailable(true);
+      return;
+    }
     if (!user?.id || !user.email) {
       navigate("/signup?next=/pricing");
       return;
@@ -118,24 +136,15 @@ export default function Pricing() {
               type="button"
               onClick={() => handleBuy(plan.url, plan.plan)}
             >
-              {plan.cta}
+              {plan.url ? plan.cta : "Contact support"}
             </button>
           </article>
         ))}
       </div>
-      {plans.some((plan) => {
-        if (plan.plan === "basic") {
-          return !import.meta.env.NEXT_PUBLIC_LEMON_BASIC_URL && !import.meta.env.VITE_LEMON_BASIC_URL;
-        }
-        if (plan.plan === "pro") {
-          return !import.meta.env.NEXT_PUBLIC_LEMON_PRO_URL && !import.meta.env.VITE_LEMON_PRO_URL;
-        }
-        return !import.meta.env.NEXT_PUBLIC_LEMON_ENTERPRISE_URL && !import.meta.env.VITE_LEMON_ENTERPRISE_URL;
-      }) ? (
+      {plans.some((plan) => !plan.url) || checkoutUnavailable ? (
         <p className="pricing-note">
-          Checkout URL environment variables are not set; using the configured store checkout links.
-          Set NEXT_PUBLIC_LEMON_BASIC_URL, NEXT_PUBLIC_LEMON_PRO_URL, and
-          NEXT_PUBLIC_LEMON_ENTERPRISE_URL for this Vite deployment.
+          Checkout is unavailable for one or more plans. Please contact NoorFinance support or
+          configure valid HTTPS Lemon Squeezy checkout URLs in the deployment environment.
         </p>
       ) : null}
     </div>

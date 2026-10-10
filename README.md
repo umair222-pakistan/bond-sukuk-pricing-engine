@@ -49,7 +49,8 @@ profile before that profile is updated.
    `20261010110000_license_key_activation.sql`, and
    `20261010120000_license_user_binding.sql`,
    `20261010130000_license_activation_timestamp.sql`, and
-   `20261010140000_license_tier_entitlements.sql`. These migrations provision
+   `20261010140000_license_tier_entitlements.sql`, and
+   `20261010150000_fix_saas_tiers.sql`. These migrations provision
    tiered license claiming and profile entitlements. RLS stays enabled;
    `service_role` is granted server-side access, while authenticated users may
    only read their own profile.

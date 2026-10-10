@@ -2783,6 +2783,22 @@ a {
   margin-top: 0;
 }
 
+.subscription-plan-badge {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 0.35rem 0.8rem;
+  background: #e8eee8;
+  color: #1a3d2e;
+  font-size: 0.9rem;
+}
+
+.subscription-plan-pro,
+.subscription-plan-enterprise {
+  background: #1a3d2e;
+  color: #fff;
+}
+
 .masked-license-key {
   font-family: monospace;
   font-size: 1.1rem;

@@ -3,6 +3,7 @@ import { useAuth } from "../context/AuthContext";
 import { useAdmin } from "./useAdmin";
 
 export type SubscriptionTier = "free" | "basic" | "pro" | "enterprise";
+export type PaidSubscriptionTier = Exclude<SubscriptionTier, "free">;
 
 type LicenseResponse = {
   valid?: boolean;
@@ -13,6 +14,12 @@ type LicenseResponse = {
 };
 
 const PAID_TIERS = new Set<SubscriptionTier>(["basic", "pro", "enterprise"]);
+const TIER_RANK: Record<SubscriptionTier, number> = {
+  free: 0,
+  basic: 1,
+  pro: 2,
+  enterprise: 3,
+};
 const FREE_CALCULATION_COUNT_KEY = "noorfinance-free-calculation-count";
 
 function normalizedTier(value: unknown): SubscriptionTier {
@@ -37,6 +44,11 @@ export function useLicense() {
   const { isAdmin } = useAdmin();
   const userEmail = user?.email?.toLowerCase().trim() ?? "";
   const hasLicense = PAID_TIERS.has(tier);
+  const hasAccess = useCallback(
+    (requiredTier: SubscriptionTier): boolean =>
+      TIER_RANK[tier] >= TIER_RANK[requiredTier],
+    [tier],
+  );
 
   const refreshLicense = useCallback(async () => {
     const currentRequestId = ++requestId.current;
@@ -124,7 +136,7 @@ export function useLicense() {
 
   return {
     hasLicense,
-    hasAccess: hasLicense,
+    hasAccess,
     isPro: tier === "pro" || tier === "enterprise",
     tier,
     plan: tier,

@@ -20,7 +20,7 @@ const calculators: Calculator[] = [
   { name: "Sukuk vs Bond", shortName: "Sukuk vs Bond", category: "Debt", description: "Compare pricing, yields, and cash flows for conventional bonds and Ijara sukuk.", active: true, requiredTier: "basic", icon: "sukuk" },
   { name: "Murabaha", shortName: "Murabaha", category: "Debt", description: "Explore cost-plus sale pricing and payment schedules.", active: true, requiredTier: "basic", href: "/calculators/murabaha", icon: "murabaha" },
   { name: "Musharaka", shortName: "Musharaka", category: "Equity", description: "Model shared ownership and profit allocation.", active: true, requiredTier: "pro", href: "/calculators/musharaka", icon: "musharaka" },
-  { name: "Mudaraba", shortName: "Mudaraba", category: "Equity", description: "Illustrate investment partnership profit-sharing.", active: false, requiredTier: "pro", icon: "mudaraba" },
+  { name: "Mudaraba", shortName: "Mudaraba", category: "Equity", description: "Illustrate investment partnership profit-sharing.", active: true, requiredTier: "pro", href: "/calculators/mudaraba", icon: "mudaraba" },
   { name: "Ijara", shortName: "Ijara", category: "Debt", description: "Estimate lease rentals and review an Ijara payment schedule.", active: true, requiredTier: "basic", href: "/calculators/ijara", icon: "ijara" },
   { name: "Istisna", shortName: "Istisna", category: "Debt", description: "Plan staged payments for an asset commissioned for construction.", active: false, requiredTier: "pro", icon: "istisna" },
   { name: "Zakat", shortName: "Zakat", category: "Social", description: "Organize eligible assets for an educational zakat estimate.", active: true, requiredTier: "basic", href: "/calculators/zakat", icon: "zakat" },
@@ -29,13 +29,6 @@ const calculators: Calculator[] = [
 ];
 
 const filters: Filter[] = ["All", "Debt", "Equity", "Social"];
-const tierRank: Record<SubscriptionTier, number> = {
-  free: 0,
-  basic: 1,
-  pro: 2,
-  enterprise: 3,
-};
-
 function CalculatorIcon({ name }: { name: Calculator["icon"] }) {
   const paths: Record<Calculator["icon"], ReactNode> = {
     sukuk: <><path d="M4 18h16M6 15V9m4 6V5m4 10v-4m4 4V7" /><path d="m4 7 5-3 5 2 6-3" /></>,
@@ -60,7 +53,7 @@ export default function Calculators() {
   const [filter, setFilter] = useState<Filter>("All");
   const [search, setSearch] = useState("");
   const [paywallTier, setPaywallTier] = useState<SubscriptionTier | null>(null);
-  const { tier, canUseFreeCalculation, isLoading } = useLicense();
+  const { tier, canUseFreeCalculation, hasAccess, isLoading } = useLicense();
   const filteredCalculators = useMemo(() => {
     const query = search.trim().toLowerCase();
     return calculators.filter((calculator) => {
@@ -123,10 +116,17 @@ export default function Calculators() {
             {calculator.active ? (
               (() => {
                 const allowed =
-                  tierRank[tier] >= tierRank[calculator.requiredTier] ||
+                  hasAccess(calculator.requiredTier) ||
                   (tier === "free" &&
                     calculator.requiredTier === "basic" &&
                     canUseFreeCalculation);
+                if (isLoading) {
+                  return (
+                    <button className="catalog-button catalog-button-disabled" type="button" disabled>
+                      Checking plan…
+                    </button>
+                  );
+                }
                 return allowed ? (
                   <Link
                     className="catalog-button catalog-button-active"

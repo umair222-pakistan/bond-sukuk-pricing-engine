@@ -11,6 +11,7 @@ import MurabahaCalculator from "./calculators/MurabahaCalculator";
 import ZakatCalculator from "./calculators/ZakatCalculator";
 import IjaraCalculator from "./calculators/IjaraCalculator";
 import MusharakaCalculator from "./calculators/MusharakaCalculator";
+import MudarabaCalculator from "./calculators/MudarabaCalculator";
 import TakafulCalculator from "./calculators/TakafulCalculator";
 import IslamicMortgageCalculator from "./calculators/IslamicMortgageCalculator";
 import CalculatorLayout from "./components/CalculatorLayout";
@@ -26,13 +27,6 @@ import { AuthProvider } from "./context/AuthContext";
 import "./site.css";
 import Pricing from "./pages/Pricing";
 
-const tierRank: Record<SubscriptionTier, number> = {
-  free: 0,
-  basic: 1,
-  pro: 2,
-  enterprise: 3,
-};
-
 function LicensedCalculator({
   children,
   requiredTier = "basic",
@@ -40,7 +34,7 @@ function LicensedCalculator({
   children: ReactNode;
   requiredTier?: SubscriptionTier;
 }) {
-  const { tier, isLoading, canUseFreeCalculation } = useLicense();
+  const { tier, isLoading, canUseFreeCalculation, hasAccess } = useLicense();
   const [showPaywall, setShowPaywall] = useState(false);
 
   useEffect(() => {
@@ -53,7 +47,7 @@ function LicensedCalculator({
     return <div style={{padding: "40px", textAlign: "center"}}>Loading...</div>;
   }
   const tierAllowed =
-    tierRank[tier] >= tierRank[requiredTier] ||
+    hasAccess(requiredTier) ||
     (tier === "free" && requiredTier === "basic" && canUseFreeCalculation);
   if (!tierAllowed) {
     return <Paywall tier={requiredTier} />;
@@ -140,6 +134,19 @@ export default function App() {
                       description="Model a joint venture’s agreed profit sharing and an illustrative diminishing ownership buyout."
                     >
                       <MusharakaCalculator />
+                    </CalculatorLayout>
+                  </LicensedCalculator>
+                }
+              />
+              <Route
+                path="/calculators/mudaraba"
+                element={
+                  <LicensedCalculator requiredTier="pro">
+                    <CalculatorLayout
+                      title="Mudaraba Profit Sharing"
+                      description="Estimate profit allocation between an investor and an entrepreneur under an agreed Mudaraba ratio."
+                    >
+                      <MudarabaCalculator />
                     </CalculatorLayout>
                   </LicensedCalculator>
                 }

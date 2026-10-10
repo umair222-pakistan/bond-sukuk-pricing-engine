@@ -56,7 +56,10 @@ export default function Activate() {
         error?: string;
       };
       if (!response.ok || result.ok !== true || result.success !== true) {
-        throw new Error(result.error ?? "Unable to activate this license key.");
+        if (result.error?.toLowerCase().includes("invalid")) {
+          throw new Error("Invalid license. Check the key and the purchase email, then try again.");
+        }
+        throw new Error("We couldn't verify this license right now. Please try again shortly.");
       }
 
       const normalizedPlan = (result.tier ?? result.plan ?? "pro").toLowerCase();
@@ -78,7 +81,12 @@ export default function Activate() {
       await new Promise((resolve) => window.setTimeout(resolve, 1000));
       navigate("/dashboard", { replace: true });
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Unable to activate this license key.");
+      const message = cause instanceof Error ? cause.message : "";
+      setError(
+        message.includes("Invalid license")
+          ? message
+          : "We couldn't verify this license right now. Check your key and purchase email, then try again.",
+      );
     } finally {
       setSubmitting(false);
     }

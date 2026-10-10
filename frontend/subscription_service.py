@@ -20,7 +20,7 @@ def _fallback_enabled() -> bool:
     return os.environ.get("LICENSE_BRUTE_FORCE_FALLBACK", "").strip().lower() == "true"
 
 
-def _is_fallback_key(key: str) -> bool:
+def _is_valid_license_key(key: str) -> bool:
     normalized = key.strip().upper()
     return (
         len(normalized) > 8
@@ -42,7 +42,7 @@ def _plan_for_license(record: dict[str, object], key: str) -> str:
 def _rows_for_key(base_url: str, service_key: str, key: str) -> list[dict[str, object]]:
     query = urlencode(
         {
-            "license_key": f"eq.{key}",
+            "license_key": f"ilike.{key}",
             "select": "license_key,email,plan,tier,status,user_id,claimed_by_email",
             "limit": "2",
         }
@@ -100,6 +100,8 @@ def activate_license(
     access_token: str | None, raw_license_key: str
 ) -> dict[str, object]:
     key = raw_license_key.strip().upper()
+    if not _is_valid_license_key(key):
+        raise LicenseServiceError("License key format is invalid.")
     print("License flow: activation requested; key suffix:", key[-4:], flush=True)
 
     user_id: str | None = None
@@ -115,7 +117,7 @@ def activate_license(
         base_url, _, service_key = _settings()
         rows = _rows_for_key(base_url, service_key, key)
     except LicenseServiceError:
-        if _fallback_enabled() and _is_fallback_key(key):
+        if _fallback_enabled() and _is_valid_license_key(key):
             print("BRUTE FORCE fallback used for key:", key[-4:], flush=True)
             return {
                 "ok": True,
@@ -128,7 +130,7 @@ def activate_license(
         raise
 
     if len(rows) != 1:
-        if _fallback_enabled() and _is_fallback_key(key):
+        if _fallback_enabled() and _is_valid_license_key(key):
             print("BRUTE FORCE fallback used for key:", key[-4:], flush=True)
             return {
                 "ok": True,
@@ -234,6 +236,13 @@ def verify_subscription(
     access_token: str | None, license_key: str | None = None
 ) -> dict[str, object]:
     key = license_key.strip().upper() if license_key else ""
+    if key and not _is_valid_license_key(key):
+        return {
+            "valid": False,
+            "hasLicense": False,
+            "plan": "free",
+            "tier": "free",
+        }
     user_id: str | None = None
     user_email: str | None = None
     if access_token:
@@ -244,6 +253,28 @@ def verify_subscription(
         records: list[dict[str, object]] = []
         profile_entitlement: dict[str, object] | None = None
         matching_license_found = False
+        if key:
+            for record in _rows_for_key(base_url, service_key, key):
+                if record.get("status") not in {"active", "claimed"}:
+                    continue
+                if user_id:
+                    record_user = record.get("user_id")
+                    record_email = str(
+                        record.get("claimed_by_email") or record.get("email") or ""
+                    ).strip().lower()
+                    if record_user != user_id and record_email != user_email:
+                        continue
+                elif record.get("status") == "claimed":
+                    continue
+                plan = _plan_for_license(record, str(record.get("license_key") or key))
+                return {
+                    "valid": True,
+                    "hasLicense": True,
+                    "plan": plan,
+                    "tier": plan,
+                    "email": record.get("email") or user_email,
+                }
+
         if user_id:
             profile_query = urlencode(
                 {
@@ -284,9 +315,6 @@ def verify_subscription(
                     _lookup_rows(base_url, service_key, "claimed_by_email", user_email)
                 )
                 records.extend(_lookup_rows(base_url, service_key, "email", user_email))
-        if key:
-            records.extend(_rows_for_key(base_url, service_key, key))
-
         checked: set[str] = set()
         for record in records:
             row_key = str(record.get("license_key") or "")
@@ -366,7 +394,7 @@ def verify_subscription(
                             "email": user_email,
                         }
 
-        if _fallback_enabled() and _is_fallback_key(key):
+        if _fallback_enabled() and _is_valid_license_key(key):
             print("BRUTE FORCE fallback used for key:", key[-4:], flush=True)
             return {
                 "valid": True,
@@ -385,7 +413,7 @@ def verify_subscription(
         }
     except LicenseServiceError as exc:
         print("License flow: subscription verification failed:", str(exc), flush=True)
-        if _fallback_enabled() and _is_fallback_key(key):
+        if _fallback_enabled() and _is_valid_license_key(key):
             print("BRUTE FORCE fallback used for key:", key[-4:], flush=True)
             return {
                 "valid": True,

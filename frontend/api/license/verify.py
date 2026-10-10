@@ -13,7 +13,12 @@ class handler(BaseHTTPRequestHandler):
 
     def do_GET(self) -> None:
         query = parse_qs(urlparse(self.path).query)
-        license_key = (query.get("licenseKey") or query.get("license_key") or [""])[0]
+        license_key = (
+            query.get("licenseKey")
+            or query.get("license_key")
+            or query.get("key")
+            or [""]
+        )[0]
         self._verify(license_key)
 
     def do_POST(self) -> None:
@@ -24,7 +29,9 @@ class handler(BaseHTTPRequestHandler):
             payload = json.loads(self.rfile.read(length) or b"{}")
             if not isinstance(payload, dict):
                 raise ValueError("Request body must be an object.")
-            license_key = payload.get("licenseKey", payload.get("license_key", ""))
+            license_key = payload.get(
+                "licenseKey", payload.get("license_key", payload.get("key", ""))
+            )
             if not isinstance(license_key, str):
                 raise ValueError("License key must be a string.")
             self._verify(license_key)

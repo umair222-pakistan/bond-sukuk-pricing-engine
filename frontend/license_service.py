@@ -57,14 +57,17 @@ def _request_json(request: Request, *, log_result: bool = False) -> object:
             body = response.read()
     except HTTPError as exc:
         error_body = exc.read().decode("utf-8", errors="replace")
-        print(
-            "Supabase result:",
-            None,
-            {"status": exc.code, "error": error_body},
-        )
+        try:
+            error_code = json.loads(error_body).get("code")
+        except (AttributeError, json.JSONDecodeError):
+            error_code = None
+        print("Supabase request failed:", {"status": exc.code, "code": error_code})
+        detail = f"HTTP {exc.code}"
+        if isinstance(error_code, str):
+            detail += f", code {error_code}"
         if exc.code in (401, 403):
             raise LicenseServiceError("Authentication failed.") from exc
-        raise LicenseServiceError("License service request failed.") from exc
+        raise LicenseServiceError(f"License service request failed ({detail}).") from exc
     except (TimeoutError, URLError) as exc:
         print("Supabase request failed:", str(exc))
         raise LicenseServiceError("License service is temporarily unavailable.") from exc
@@ -81,7 +84,11 @@ def _request_json(request: Request, *, log_result: bool = False) -> object:
             print("Supabase result:", None, str(exc))
         raise LicenseServiceError("License service returned an invalid response.") from exc
     if log_result:
-        print("Supabase result:", data, None)
+        result_summary = {
+            "received": data is not None,
+            "count": len(data) if isinstance(data, list) else None,
+        }
+        print("Supabase result:", result_summary)
     return data
 
 

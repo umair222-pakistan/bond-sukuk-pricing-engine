@@ -96,7 +96,11 @@ export default function Dashboard() {
       <section className="subscription-summary" aria-label="Subscription summary">
         <div>
           <p className="eyebrow">CURRENT PLAN</p>
-          <h2>{subscriptionLoading ? "Checking…" : plan[0].toUpperCase() + plan.slice(1)}</h2>
+          <h2>
+            <span className={`subscription-plan-badge subscription-plan-${tier}`}>
+              {subscriptionLoading ? "Checking…" : plan[0].toUpperCase() + plan.slice(1)}
+            </span>
+          </h2>
           <p>{calculatorAllowance}</p>
         </div>
         <div>
