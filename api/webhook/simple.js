@@ -1,9 +1,9 @@
 export default async function handler(req, res) {
   try {
     if (req.method !== 'POST') return res.status(200).json({ ok: true });
+
     const attr = req.body?.data?.attributes || {};
-    const data = req.body?.data || {};
-    const email = attr.user_email || 'unknown';
+    const email = attr.user_email || attr.customer_email || 'unknown';
     const originalCustomerEmail = email;
     const isPro = (attr.first_order_item?.product_name || '').toLowerCase().includes('pro');
     const plan = isPro ? 'pro' : 'basic';
@@ -32,7 +32,7 @@ export default async function handler(req, res) {
         const { Resend } = await import('resend');
         const resend = new Resend(process.env.RESEND_API_KEY);
         await resend.emails.send({
-          from: 'NoorFinance <onboarding@resend.dev>',
+          from: 'onboarding@resend.dev',
           to: "pakistanumair123@gmail.com",
           subject: `✅ Your NoorFinance License Key (for ${originalCustomerEmail}) - ${plan}`,
           html: `<div style="font-family:sans-serif;padding:20px"><h2>Your license is ready!</h2><p><b>Original Customer:</b> ${originalCustomerEmail}</p><p><b>Plan:</b> ${plan}</p><p><b>License Key:</b> <code style="font-size:18px">${licenseKey}</code></p><p><b>Activation URL:</b> <a href="https://noorfinance.vercel.app/activate">https://noorfinance.vercel.app/activate</a></p></div>`
