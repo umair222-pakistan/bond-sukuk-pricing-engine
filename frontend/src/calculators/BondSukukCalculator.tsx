@@ -4,6 +4,7 @@ import "../App.css";
 import { saveCalculation } from "./history";
 import SaveCalculationButton from "../components/SaveCalculationButton";
 import { useLicense } from "../hooks/useLicense";
+import ActionBar from "../features/phase18/components/ActionBar";
 
 type Kind = "bond" | "sukuk";
 
@@ -361,6 +362,31 @@ export default function App() {
               </dl>
             </>
           )}
+          {result ? (
+            <ActionBar
+              dealType={pricedKind === "sukuk" ? "Ijara Sukuk" : "Bond"}
+              inputs={{
+                instrument: pricedKind,
+                face: Number(face),
+                coupon: Number(coupon),
+                yield: Number(yieldRate),
+                years: Number(years),
+                frequency: Number(freq),
+              }}
+              results={{
+                instrument: result.instrument,
+                price: result.price,
+                premium_discount: result.premium_discount,
+                quote_vs_par: result.quote_vs_par,
+                macaulay_duration: result.macaulay_duration,
+                modified_duration: result.modified_duration,
+                convexity: result.convexity,
+                dv01: result.dv01,
+                bondPrice: comparison?.bond.price ?? null,
+                sukukPrice: comparison?.sukuk.price ?? null,
+              }}
+            />
+          ) : null}
         </section>
 
         <section className="panel chart">

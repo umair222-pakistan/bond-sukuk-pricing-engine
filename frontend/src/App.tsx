@@ -1,4 +1,5 @@
 import { BrowserRouter, Route, Routes } from "react-router-dom";
+import { lazy, Suspense } from "react";
 import { useEffect, useState } from "react";
 import type { ReactNode } from "react";
 import About from "./pages/About";
@@ -26,6 +27,10 @@ import Signup from "./pages/Signup";
 import { AuthProvider } from "./context/AuthContext";
 import "./site.css";
 import Pricing from "./pages/Pricing";
+
+const VaultPage = lazy(() => import("./features/phase18/pages/VaultPage"));
+const SharedDealPage = lazy(() => import("./features/phase18/pages/SharedDealPage"));
+const ApiKeysPage = lazy(() => import("./features/phase18/pages/ApiKeysPage"));
 
 function LicensedCalculator({
   children,
@@ -68,7 +73,8 @@ export default function App() {
         <div className="site-shell">
           <Navbar />
           <main className="site-main">
-            <Routes>
+            <Suspense fallback={<div style={{ padding: "40px", textAlign: "center" }}>Loading...</div>}>
+              <Routes>
               <Route path="/" element={<Home />} />
               <Route path="/pricing" element={<Pricing />} />
               <Route path="/calculators" element={<Calculators />} />
@@ -187,9 +193,13 @@ export default function App() {
                   </ProtectedRoute>
                 }
               />
+              <Route path="/vault" element={<VaultPage />} />
+              <Route path="/share/:token" element={<SharedDealPage />} />
+              <Route path="/api-keys" element={<ApiKeysPage />} />
               <Route path="/about" element={<About />} />
               <Route path="*" element={<Home />} />
-            </Routes>
+              </Routes>
+            </Suspense>
           </main>
           <Footer />
         </div>
