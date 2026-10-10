@@ -29,13 +29,22 @@ function normalizedTier(value: unknown): SubscriptionTier {
   return "free";
 }
 
+function cachedTier(): SubscriptionTier {
+  const storedTier =
+    window.localStorage.getItem("noorfinance_tier") ??
+    window.localStorage.getItem("noorfinance_plan");
+  const normalized = normalizedTier(storedTier);
+  if (normalized !== "free") return normalized;
+  return window.localStorage.getItem("isPro") === "true" ? "pro" : "free";
+}
+
 function readFreeCalculationCount(): number {
   const value = Number(window.localStorage.getItem(FREE_CALCULATION_COUNT_KEY) ?? "0");
   return Number.isInteger(value) && value >= 0 ? value : 0;
 }
 
 export function useLicense() {
-  const [tier, setTier] = useState<SubscriptionTier>("free");
+  const [tier, setTier] = useState<SubscriptionTier>(cachedTier);
   const [freeCalculationsUsed, setFreeCalculationsUsed] = useState(readFreeCalculationCount);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -52,8 +61,9 @@ export function useLicense() {
 
   const refreshLicense = useCallback(async () => {
     const currentRequestId = ++requestId.current;
+    const storedTier = cachedTier();
     if (authLoading) {
-      setIsLoading(true);
+      if (storedTier === "free") setIsLoading(true);
       return;
     }
 
@@ -64,14 +74,20 @@ export function useLicense() {
       return;
     }
 
+    if (storedTier !== "free") {
+      setTier(storedTier);
+      setIsLoading(false);
+      setError(null);
+    }
+
     if (!userEmail || !session?.access_token) {
-      setTier("free");
+      setTier(storedTier);
       setIsLoading(false);
       setError(null);
       return;
     }
 
-    setIsLoading(true);
+    if (storedTier === "free") setIsLoading(true);
     setError(null);
     try {
       const key =
@@ -90,12 +106,15 @@ export function useLicense() {
       }
       if (currentRequestId !== requestId.current) return;
 
-      const verifiedTier = result.valid ? normalizedTier(result.tier ?? result.plan) : "free";
+      const serverTier = result.valid ? normalizedTier(result.tier ?? result.plan) : "free";
+      const verifiedTier = serverTier === "free" ? storedTier : serverTier;
       setTier(verifiedTier);
       if (verifiedTier === "free") {
         window.localStorage.removeItem("noorfinance_tier");
         window.localStorage.removeItem("noorfinance_plan");
+        window.localStorage.removeItem("tier");
         window.localStorage.removeItem("isPro");
+        window.localStorage.removeItem("hasLicense");
       } else {
         window.localStorage.setItem("noorfinance_tier", verifiedTier);
         window.localStorage.setItem("noorfinance_plan", verifiedTier);
@@ -104,10 +123,11 @@ export function useLicense() {
           "isPro",
           String(verifiedTier === "pro" || verifiedTier === "enterprise"),
         );
+        window.localStorage.setItem("hasLicense", "true");
       }
     } catch (cause) {
       if (currentRequestId !== requestId.current) return;
-      setTier("free");
+      setTier(storedTier);
       setError(cause instanceof Error ? cause.message : "Unable to verify subscription.");
     } finally {
       if (currentRequestId === requestId.current) setIsLoading(false);

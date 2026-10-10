@@ -23,7 +23,7 @@ const calculators: Calculator[] = [
   { name: "Mudaraba", shortName: "Mudaraba", category: "Equity", description: "Illustrate investment partnership profit-sharing.", active: true, requiredTier: "pro", href: "/calculators/mudaraba", icon: "mudaraba" },
   { name: "Ijara", shortName: "Ijara", category: "Debt", description: "Estimate lease rentals and review an Ijara payment schedule.", active: true, requiredTier: "basic", href: "/calculators/ijara", icon: "ijara" },
   { name: "Istisna", shortName: "Istisna", category: "Debt", description: "Plan staged payments for an asset commissioned for construction.", active: false, requiredTier: "pro", icon: "istisna" },
-  { name: "Zakat", shortName: "Zakat", category: "Social", description: "Organize eligible assets for an educational zakat estimate.", active: true, requiredTier: "basic", href: "/calculators/zakat", icon: "zakat" },
+  { name: "Zakat", shortName: "Zakat", category: "Social", description: "Organize eligible assets for an educational zakat estimate.", active: true, requiredTier: "pro", href: "/calculators/zakat", icon: "zakat" },
   { name: "Halal Mortgage", shortName: "Islamic Mortgage", category: "Debt", description: "Compare illustrative Murabaha, Ijara, and Diminishing Musharakah payments.", active: true, requiredTier: "basic", href: "/calculators/islamic-mortgage", icon: "mortgage" },
   { name: "Takaful", shortName: "Takaful", category: "Social", description: "Estimate cooperative protection contributions, Tabarru, and illustrative surplus.", active: true, requiredTier: "pro", href: "/calculators/takaful", icon: "takaful" },
 ];

@@ -102,7 +102,7 @@ export default function App() {
               <Route
                 path="/calculators/zakat"
                 element={
-                  <LicensedCalculator>
+                  <LicensedCalculator requiredTier="pro">
                     <CalculatorLayout
                       title="Zakat Calculator"
                       description="Estimate zakatable wealth against the gold nisab threshold."

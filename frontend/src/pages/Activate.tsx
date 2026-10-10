@@ -70,10 +70,8 @@ export default function Activate() {
       window.localStorage.setItem("noorfinance_tier", normalizedPlan);
       window.localStorage.setItem("noorfinance_plan", normalizedPlan);
       window.localStorage.setItem("tier", normalizedPlan);
-      window.localStorage.setItem(
-        "isPro",
-        String(normalizedPlan === "pro" || normalizedPlan === "enterprise"),
-      );
+      window.localStorage.setItem("isPro", "true");
+      window.localStorage.setItem("hasLicense", "true");
       window.localStorage.setItem("license_key", normalizedKey);
       window.localStorage.setItem("noorfinance-license-key", normalizedKey);
       setSuccess(true);
