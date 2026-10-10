@@ -73,8 +73,7 @@ export default function Activate() {
             type="text"
             autoComplete="off"
             autoCapitalize="characters"
-            maxLength={40}
-            placeholder="NOOR-XXXXXXXX-…"
+            placeholder="NF-XXXXXXXX-…"
             value={licenseKey}
             onChange={(event) => setLicenseKey(event.target.value.toUpperCase())}
             required

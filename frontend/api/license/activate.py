@@ -40,12 +40,13 @@ class handler(BaseHTTPRequestHandler):
             self._respond(400, {"error": "Enter a valid license key."})
             return
         license_key = license_key.strip().upper()
-        if not re.fullmatch(r"NOOR(?:-[A-F0-9]{8}){4}", license_key):
+        if not re.fullmatch(r"(?=.{8,})(?:NF-|NOOR-)[A-Z0-9]+(?:-[A-Z0-9]+)*", license_key):
             self._respond(400, {"error": "Enter a valid license key."})
             return
 
         try:
-            email = activate_license(authorization[7:].strip(), license_key)
+            access_token = authorization[7:].strip()
+            email = activate_license(access_token, license_key)
         except LicenseServiceError as exc:
             message = str(exc)
             status = (

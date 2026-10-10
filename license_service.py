@@ -115,6 +115,33 @@ def active_license_for_email(email: str) -> bool:
     supabase_url, _, service_role_key = _settings()
     query = urlencode(
         {
+            "email": f"ilike.{email}",
+            "status": "eq.active",
+            "select": "email",
+            "limit": "1",
+        }
+    )
+    request = Request(
+        f"{supabase_url}/rest/v1/licenses?{query}",
+        headers={
+            "apikey": service_role_key,
+            "Authorization": f"Bearer {service_role_key}",
+            "Accept": "application/json",
+        },
+    )
+    rows = _request_json(request)
+    if not isinstance(rows, list):
+        raise LicenseServiceError("License service returned an invalid response.")
+    if any(
+        isinstance(row, dict)
+        and isinstance(row.get("email"), str)
+        and row["email"].strip().lower() == email.strip().lower()
+        for row in rows
+    ):
+        return True
+
+    query = urlencode(
+        {
             "user_email": f"eq.{email}",
             "status": "eq.active",
             "select": "expires_at",
@@ -154,17 +181,19 @@ def active_license_for_email(email: str) -> bool:
 
 def activate_license(access_token: str, license_key: str) -> str:
     _, email = authenticated_user(access_token)
+    print("Activating", email, license_key)
     supabase_url, _, service_role_key = _settings()
     query = urlencode(
         {
-            "license_key_id": f"eq.{license_key}",
+            "license_key": f"ilike.{license_key}",
+            "email": f"ilike.{email}",
             "status": "eq.active",
-            "select": "user_email,expires_at",
+            "select": "email,license_key",
             "limit": "2",
         }
     )
     request = Request(
-        f"{supabase_url}/rest/v1/noorfinance_licenses?{query}",
+        f"{supabase_url}/rest/v1/licenses?{query}",
         headers={
             "apikey": service_role_key,
             "Authorization": f"Bearer {service_role_key}",
@@ -176,22 +205,15 @@ def activate_license(access_token: str, license_key: str) -> str:
         raise LicenseServiceError("License key is invalid or inactive.")
 
     license_record = rows[0]
-    license_email = license_record.get("user_email")
-    if not isinstance(license_email, str) or license_email.strip().lower() != email:
+    license_email = license_record.get("email")
+    stored_license_key = license_record.get("license_key")
+    if (
+        not isinstance(license_email, str)
+        or license_email.strip().lower() != email
+        or not isinstance(stored_license_key, str)
+        or stored_license_key.strip().upper() != license_key
+    ):
         raise LicenseServiceError("License key is invalid or inactive.")
-
-    expires_at = license_record.get("expires_at")
-    if expires_at is not None:
-        if not isinstance(expires_at, str):
-            raise LicenseServiceError("License key is invalid or inactive.")
-        try:
-            expiry = datetime.fromisoformat(expires_at.replace("Z", "+00:00"))
-        except ValueError as exc:
-            raise LicenseServiceError("License key is invalid or inactive.") from exc
-        if expiry.tzinfo is None:
-            expiry = expiry.replace(tzinfo=timezone.utc)
-        if expiry <= datetime.now(timezone.utc):
-            raise LicenseServiceError("License key is invalid or inactive.")
 
     return email
 

@@ -7,7 +7,7 @@ export default async function handler(req, res) {
     const originalCustomerEmail = email;
     const isPro = (attr.first_order_item?.product_name || '').toLowerCase().includes('pro');
     const plan = isPro ? 'pro' : 'basic';
-    const licenseKey = `NOOR-${Date.now().toString(36).toUpperCase()}-${Math.random().toString(36).substring(2,6).toUpperCase()}`;
+    const licenseKey = `NF-${Date.now()}-${Math.random().toString(36).substring(2,8).toUpperCase()}`;
     console.log("License generated for", originalCustomerEmail, "plan", plan, "key", licenseKey);
 
     try {
