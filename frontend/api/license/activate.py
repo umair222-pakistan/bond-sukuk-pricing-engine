@@ -1,110 +1,114 @@
 from __future__ import annotations
 
 import json
-import logging
 import os
-import re
 from http.server import BaseHTTPRequestHandler
-
-from license_service import LicenseServiceError, activate_license
-
-logger = logging.getLogger(__name__)
+from urllib.error import HTTPError, URLError
+from urllib.parse import urlencode
+from urllib.request import Request, urlopen
 
 
 class handler(BaseHTTPRequestHandler):
     def do_GET(self) -> None:
-        self._respond(405, {"error": "Method not allowed."})
+        self._respond(405, {"ok": False, "error": "Method not allowed"})
 
     def do_POST(self) -> None:
-        logger.info("Activation request started.")
-        logger.info(
-            "ENV check: SUPABASE_URL=%s NEXT_PUBLIC_SUPABASE_URL=%s SUPABASE_SERVICE_ROLE_KEY=%s",
-            bool(os.environ.get("SUPABASE_URL")),
-            bool(os.environ.get("NEXT_PUBLIC_SUPABASE_URL")),
-            bool(os.environ.get("SUPABASE_SERVICE_ROLE_KEY")),
-        )
-        authorization = self.headers.get("Authorization", "")
-        if not authorization.startswith("Bearer ") or not authorization[7:].strip():
-            logger.warning("Activation rejected: missing bearer token.")
-            self._respond(401, {"error": "Sign in to activate a license."})
-            return
-
         try:
-            content_length = int(self.headers.get("Content-Length", "0"))
-        except ValueError:
-            logger.warning("Activation rejected: invalid Content-Length.")
-            self._respond(400, {"error": "Invalid request."})
-            return
-        if content_length <= 0 or content_length > 4096:
-            logger.warning(
-                "Activation rejected: request body length out of range: %d.",
-                content_length,
-            )
-            self._respond(400, {"error": "Invalid request."})
-            return
+            length = int(self.headers.get("Content-Length", "0"))
+            payload = json.loads(self.rfile.read(length))
+            if not isinstance(payload, dict):
+                raise ValueError("Request body must be a JSON object")
+            raw_key = payload.get("license_key", payload.get("licenseKey", ""))
+            license_key = raw_key.strip().upper() if isinstance(raw_key, str) else ""
+            print("Activation lookup started; key suffix:", license_key[-4:], flush=True)
 
-        try:
-            payload = json.loads(self.rfile.read(content_length))
-        except (json.JSONDecodeError, UnicodeDecodeError) as exc:
-            logger.warning("Activation rejected: invalid JSON body: %s", exc)
-            self._respond(400, {"error": "Invalid request."})
-            return
-        if not isinstance(payload, dict):
-            logger.warning("Activation rejected: JSON body is not an object.")
-            self._respond(400, {"error": "Invalid request."})
-            return
+            if not license_key:
+                print("Activation failed: missing license_key", flush=True)
+                self._respond(400, {"ok": False, "error": "License key is required"})
+                return
 
-        license_key = payload.get("licenseKey")
-        if not isinstance(license_key, str):
-            logger.warning("Activation rejected: missing or non-string licenseKey.")
-            self._respond(400, {"error": "Enter a valid license key."})
-            return
-        license_key = license_key.strip().upper()
-        if license_key:
-            logger.info(
-                "Activation key received: length=%d suffix=%s",
-                len(license_key),
-                license_key[-4:],
+            supabase_url = (
+                os.environ.get("SUPABASE_URL")
+                or os.environ.get("VITE_SUPABASE_URL", "")
+            ).rstrip("/")
+            service_role_key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY", "")
+            print(
+                "Supabase env configured:",
+                bool(supabase_url),
+                bool(service_role_key),
+                flush=True,
             )
-        else:
-            logger.warning("Activation rejected: licenseKey is empty after trimming.")
-        if not re.fullmatch(r"(?=.{8,})(?:NF-|NOOR-)[A-Z0-9]+(?:-[A-Z0-9]+)*", license_key):
-            logger.warning(
-                "Activation rejected: key format validation failed (length=%d).",
-                len(license_key),
-            )
-            self._respond(400, {"error": "Enter a valid license key."})
-            return
+            if not supabase_url or not service_role_key:
+                raise RuntimeError("Supabase URL or service-role key is not configured")
 
-        try:
-            access_token = authorization[7:].strip()
-            logger.info("Starting Supabase authentication and license lookup.")
-            email, plan = activate_license(access_token, license_key)
-        except LicenseServiceError as exc:
-            logger.exception("ACTIVATE FAILED: %s", exc)
-            message = str(exc)
-            status = (
-                401
-                if message == "Authentication failed."
-                else 503
-                if "temporarily unavailable" in message or "not configured" in message
-                else 400
-                if message == "License key is invalid or inactive."
-                else 500
+            query = urlencode(
+                {
+                    "select": "plan",
+                    "license_key": f"eq.{license_key}",
+                    "status": "eq.active",
+                    "limit": "1",
+                }
             )
-            self._respond(status, {"error": message})
-            return
+            lookup = Request(
+                f"{supabase_url}/rest/v1/licenses?{query}",
+                headers={
+                    "apikey": service_role_key,
+                    "Authorization": f"Bearer {service_role_key}",
+                    "Accept": "application/json",
+                },
+            )
+            print("Querying active license by key", flush=True)
+            with urlopen(lookup, timeout=10) as response:
+                licenses = json.loads(response.read())
+            print("License lookup rows:", len(licenses) if isinstance(licenses, list) else "invalid", flush=True)
 
-        logger.info(
-            "Activation succeeded for authenticated account %s with plan %s.",
-            email,
-            plan,
-        )
-        self._respond(200, {"ok": True, "success": True, "email": email, "plan": plan})
+            if not isinstance(licenses, list) or not licenses:
+                count_query = urlencode({"select": "license_key"})
+                count_request = Request(
+                    f"{supabase_url}/rest/v1/licenses?{count_query}",
+                    headers={
+                        "apikey": service_role_key,
+                        "Authorization": f"Bearer {service_role_key}",
+                        "Accept": "application/json",
+                        "Prefer": "count=exact",
+                        "Range": "0-0",
+                    },
+                )
+                with urlopen(count_request, timeout=10) as response:
+                    response.read()
+                    content_range = response.headers.get("Content-Range", "")
+                total = content_range.rsplit("/", 1)[-1]
+                print("Total licenses:", total or "unknown", flush=True)
+                self._respond(
+                    404,
+                    {
+                        "ok": False,
+                        "error": "License not found",
+                        "license_key": license_key,
+                    },
+                )
+                return
+
+            license_record = licenses[0]
+            print("Active license found; plan:", license_record.get("plan"), flush=True)
+            self._respond(200, {"ok": True, "plan": license_record.get("plan")})
+        except HTTPError as exc:
+            detail = exc.read().decode("utf-8", errors="replace")
+            print(
+                "Supabase HTTP error:",
+                exc.code,
+                detail or str(exc),
+                flush=True,
+            )
+            self._respond(500, {"ok": False, "error": "License lookup failed"})
+        except (URLError, OSError, ValueError, TypeError, AttributeError) as exc:
+            print("Activation lookup failed:", repr(exc), flush=True)
+            self._respond(500, {"ok": False, "error": "License lookup failed"})
+        except Exception as exc:
+            print("Unexpected activation error:", repr(exc), flush=True)
+            self._respond(500, {"ok": False, "error": "License lookup failed"})
 
     def _respond(self, status: int, payload: dict[str, object]) -> None:
-        if status == 400:
-            logger.warning("Activation returned 400: %s", payload.get("error", "unknown reason"))
         body = json.dumps(payload).encode("utf-8")
         self.send_response(status)
         self.send_header("Content-Type", "application/json")
