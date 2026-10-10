@@ -1,12 +1,10 @@
 from __future__ import annotations
 
-import os
 from typing import Literal
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field, field_validator
-import uvicorn
 
 app = FastAPI(
     title="Bond & Sukuk Pricing Engine",
@@ -300,8 +298,3 @@ def yield_curve() -> dict:
         "source": "illustrative par government curve",
         "points": YIELD_CURVE,
     }
-
-
-if __name__ == "__main__":
-    port = int(os.getenv("PORT", "8000"))
-    uvicorn.run("main:app", host="0.0.0.0", port=port)
