@@ -1,11 +1,13 @@
 import { useState, type FormEvent } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { useLicense } from "../hooks/useLicense";
+import { supabase } from "../lib/supabaseClient";
 
 export default function Activate() {
-  const { session, user, loading } = useAuth();
+  const { user, loading } = useAuth();
   const { hasLicense, refreshLicense } = useLicense();
+  const navigate = useNavigate();
   const [licenseKey, setLicenseKey] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
@@ -18,11 +20,24 @@ export default function Activate() {
     setSubmitting(true);
 
     try {
+      if (!supabase) {
+        throw new Error("Supabase is not configured.");
+      }
+      const {
+        data: { session },
+        error: sessionError,
+      } = await supabase.auth.getSession();
+      if (sessionError) throw sessionError;
+      if (!session) {
+        navigate("/login?next=/activate");
+        return;
+      }
+
       const normalizedKey = licenseKey.trim().toUpperCase();
       const response = await fetch("/api/license/activate", {
         method: "POST",
         headers: {
-          Authorization: `Bearer ${session?.access_token ?? ""}`,
+          Authorization: `Bearer ${session.access_token}`,
           "Content-Type": "application/json",
         },
         body: JSON.stringify({ licenseKey: normalizedKey }),
@@ -77,13 +92,13 @@ export default function Activate() {
             value={licenseKey}
             onChange={(event) => setLicenseKey(event.target.value.toUpperCase())}
             required
-            disabled={!user || submitting}
+            disabled={submitting}
             style={{ fontFamily: "monospace", letterSpacing: "0.04em" }}
           />
           <button
             className="button-primary auth-submit"
             type="submit"
-            disabled={!user || submitting || !licenseKey.trim()}
+            disabled={submitting || !licenseKey.trim()}
           >
             {submitting ? "Activating…" : "Activate License"}
           </button>

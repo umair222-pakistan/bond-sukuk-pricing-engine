@@ -15,6 +15,7 @@ class LicenseServiceError(Exception):
 def _settings() -> tuple[str, str, str]:
     supabase_url = (
         os.environ.get("SUPABASE_URL")
+        or os.environ.get("VITE_SUPABASE_URL")
         or os.environ.get("NEXT_PUBLIC_SUPABASE_URL", "")
     ).rstrip("/")
     anon_key = os.environ.get("SUPABASE_ANON_KEY", "")
@@ -133,7 +134,7 @@ def active_license_for_email(email: str) -> bool:
     query = urlencode(
         {
             "email": f"ilike.{email}",
-            "status": "eq.active",
+            "status": "in.(active,claimed)",
             "select": "email",
             "limit": "1",
         }
@@ -196,11 +197,72 @@ def active_license_for_email(email: str) -> bool:
     return False
 
 
-def activate_license(access_token: str, license_key: str) -> tuple[str, str]:
-    user_id, email = authenticated_user(access_token)
+def activate_license(access_token: str | None, license_key: str) -> tuple[str, str]:
     license_key = license_key.strip().upper()
-    print("Activate attempt:", email, license_key)
+    print("Activate attempt; key suffix:", license_key[-4:], flush=True)
     supabase_url, _, service_role_key = _settings()
+    if access_token is None:
+        print("Skipping auth verification for key-only activation", flush=True)
+        lookup_query = urlencode(
+            {
+                "license_key": f"eq.{license_key}",
+                "status": "eq.active",
+                "select": "*",
+                "limit": "2",
+            }
+        )
+        lookup_request = Request(
+            f"{supabase_url}/rest/v1/licenses?{lookup_query}",
+            headers={
+                "apikey": service_role_key,
+                "Authorization": f"Bearer {service_role_key}",
+                "Accept": "application/json",
+            },
+        )
+        print("Looking up active license with service-role key", flush=True)
+        rows = _request_json(lookup_request, log_result=True)
+        if not isinstance(rows, list) or len(rows) != 1 or not isinstance(rows[0], dict):
+            print("Key-only lookup found no unique active license", flush=True)
+            raise LicenseServiceError("License key is invalid or inactive.")
+
+        license_record = rows[0]
+        email = license_record.get("email")
+        plan = license_record.get("plan")
+        if not isinstance(email, str) or not isinstance(plan, str):
+            raise LicenseServiceError("License record has no email or plan.")
+
+        activated_at = datetime.now(timezone.utc).isoformat()
+        update_query = urlencode(
+            {
+                "license_key": f"eq.{license_key}",
+                "status": "eq.active",
+                "select": "license_key",
+            }
+        )
+        update_request = Request(
+            f"{supabase_url}/rest/v1/licenses?{update_query}",
+            data=json.dumps(
+                {"status": "claimed", "activated_at": activated_at}
+            ).encode("utf-8"),
+            headers={
+                "apikey": service_role_key,
+                "Authorization": f"Bearer {service_role_key}",
+                "Accept": "application/json",
+                "Content-Type": "application/json",
+                "Prefer": "return=representation",
+            },
+            method="PATCH",
+        )
+        print("Claiming license and recording activation time", flush=True)
+        updated_rows = _request_json(update_request, log_result=True)
+        if not isinstance(updated_rows, list) or len(updated_rows) != 1:
+            print("License claim did not update exactly one row", flush=True)
+            raise LicenseServiceError("License key is invalid or inactive.")
+        print("Key-only activation completed for license email", email, flush=True)
+        return email.strip().lower(), plan
+
+    user_id, email = authenticated_user(access_token)
+    print("Authenticated activation for", email, flush=True)
     query = urlencode(
         {
             "license_key": f"eq.{license_key}",
