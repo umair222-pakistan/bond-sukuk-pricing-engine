@@ -1,6 +1,7 @@
 import { useMemo, useState, type FormEvent } from "react";
 import { saveCalculation } from "./history";
 import SaveCalculationButton from "../components/SaveCalculationButton";
+import { useLicense } from "../hooks/useLicense";
 
 type Inputs = {
   propertyPrice: string;
@@ -89,8 +90,11 @@ function buildStackedAreaPath(
 }
 
 export default function IjaraCalculator() {
+  const { consumeFreeCalculation, freeCalculationsUsed, tier } = useLicense();
+  const freeLimitReached = tier === "free" && freeCalculationsUsed >= 1;
   const [inputs, setInputs] = useState<Inputs>(initialInputs);
   const [error, setError] = useState<string | null>(null);
+  const [hasCalculated, setHasCalculated] = useState(false);
   const propertyPrice = Number(inputs.propertyPrice);
   const downPaymentPercent = Number(inputs.downPaymentPercent);
   const rate = Number(inputs.ijaraRate);
@@ -153,6 +157,11 @@ export default function IjaraCalculator() {
       setError("Check the entered values. Term must be 1–30 whole years and percentages must be 0–100.");
       return;
     }
+    if (!consumeFreeCalculation()) {
+      setError("The free plan includes one calculation. Upgrade to continue.");
+      return;
+    }
+    setHasCalculated(true);
     try {
       saveCalculation({
         id: crypto.randomUUID(),
@@ -193,6 +202,7 @@ export default function IjaraCalculator() {
                 step={step}
                 required
                 value={inputs[key]}
+                disabled={freeLimitReached}
                 onChange={(event) => update(key, event.target.value)}
               />
               {suffix ? <span className="ijara-input-suffix">{suffix}</span> : null}
@@ -203,7 +213,9 @@ export default function IjaraCalculator() {
         {error ? <p className="err" role="alert">{error}</p> : null}
       </form>
 
-      {!valid ? (
+      {tier === "free" && !hasCalculated ? (
+        <p className="calculator-validation">Submit once to use your free calculation.</p>
+      ) : !valid ? (
         <p className="ijara-validation" role="alert">
           Enter a positive property price, percentages from 0–100, and a whole lease term from 1–30 years.
         </p>

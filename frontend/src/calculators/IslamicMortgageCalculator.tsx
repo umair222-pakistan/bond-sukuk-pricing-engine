@@ -1,5 +1,6 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, type FormEvent } from "react";
 import SaveCalculationButton from "../components/SaveCalculationButton";
+import { useLicense } from "../hooks/useLicense";
 
 type FinanceType = "Murabaha" | "Diminishing Musharakah" | "Ijara";
 type PaymentRow = {
@@ -31,6 +32,9 @@ function buildSchedule(principal: number, annualRatePercent: number, years: numb
 }
 
 export default function IslamicMortgageCalculator() {
+  const { consumeFreeCalculation, freeCalculationsUsed, tier } = useLicense();
+  const freeLimitReached = tier === "free" && freeCalculationsUsed >= 1;
+  const [hasCalculated, setHasCalculated] = useState(false);
   const [propertyPrice, setPropertyPrice] = useState("300000");
   const [downPaymentPercent, setDownPaymentPercent] = useState("20");
   const [profitRatePercent, setProfitRatePercent] = useState("5");
@@ -63,31 +67,41 @@ export default function IslamicMortgageCalculator() {
     [monthlyPayment, totalProfit, totalPaid, schedule],
   );
 
+  function handleCalculate(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!valid) return;
+    if (!consumeFreeCalculation()) return;
+    setHasCalculated(true);
+  }
+
   return (
     <div className="special-calculator">
-      <form className="panel inputs special-calculator-inputs" onSubmit={(event) => event.preventDefault()}>
+      <form className="panel inputs special-calculator-inputs" onSubmit={handleCalculate}>
         <label>Property Price
-          <input type="number" min="0.01" step="0.01" required value={propertyPrice} onChange={(event) => setPropertyPrice(event.target.value)} />
+          <input type="number" min="0.01" step="0.01" required value={propertyPrice} disabled={freeLimitReached} onChange={(event) => setPropertyPrice(event.target.value)} />
         </label>
         <label>Down Payment %
-          <input type="number" min="0" max="100" step="0.01" required value={downPaymentPercent} onChange={(event) => setDownPaymentPercent(event.target.value)} />
+          <input type="number" min="0" max="100" step="0.01" required value={downPaymentPercent} disabled={freeLimitReached} onChange={(event) => setDownPaymentPercent(event.target.value)} />
         </label>
         <label>Profit Rate % annual
-          <input type="number" min="0" step="0.01" required value={profitRatePercent} onChange={(event) => setProfitRatePercent(event.target.value)} />
+          <input type="number" min="0" step="0.01" required value={profitRatePercent} disabled={freeLimitReached} onChange={(event) => setProfitRatePercent(event.target.value)} />
         </label>
         <label>Tenure Years
-          <input type="number" min="1" max="40" step="1" required value={tenureYears} onChange={(event) => setTenureYears(event.target.value)} />
+          <input type="number" min="1" max="40" step="1" required value={tenureYears} disabled={freeLimitReached} onChange={(event) => setTenureYears(event.target.value)} />
         </label>
         <label>Finance Type
-          <select value={type} onChange={(event) => setType(event.target.value as FinanceType)}>
+          <select value={type} disabled={freeLimitReached} onChange={(event) => setType(event.target.value as FinanceType)}>
             <option value="Murabaha">Murabaha</option>
             <option value="Diminishing Musharakah">Diminishing Musharakah</option>
             <option value="Ijara">Ijara</option>
           </select>
         </label>
+        <button className="go" type="submit" disabled={!valid || freeLimitReached}>Calculate Schedule</button>
       </form>
 
-      {!valid ? <p className="calculator-validation" role="alert">Enter a positive property price, a down payment from 0–100%, a non-negative profit rate, and a tenure from 1–40 whole years.</p> : (
+      {tier === "free" && !hasCalculated ? (
+        <p className="calculator-validation">Calculate once to use your free calculation.</p>
+      ) : !valid ? <p className="calculator-validation" role="alert">Enter a positive property price, a down payment from 0–100%, a non-negative profit rate, and a tenure from 1–40 whole years.</p> : (
         <>
           <section className="special-calculator-summary" aria-label="Islamic mortgage calculation results">
             <article className="panel special-calculator-metric"><span>Monthly Payment</span><strong>{money.format(monthlyPayment)}</strong><small>First scheduled payment</small></article>
@@ -121,7 +135,12 @@ export default function IslamicMortgageCalculator() {
           </p>
         </>
       )}
-      <SaveCalculationButton calculatorType="Islamic Mortgage" inputs={inputs} results={results} disabled={!valid} />
+      <SaveCalculationButton
+        calculatorType="Islamic Mortgage"
+        inputs={inputs}
+        results={results}
+        disabled={!valid || (tier === "free" && !hasCalculated)}
+      />
     </div>
   );
 }

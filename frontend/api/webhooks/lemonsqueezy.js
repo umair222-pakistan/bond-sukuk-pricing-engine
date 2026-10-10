@@ -55,6 +55,29 @@ function nonEmptyString(value) {
   return null;
 }
 
+function planForVariant(variantId) {
+  if (!variantId) return null;
+  for (const [plan, variable] of [
+    ["basic", "LEMONSQUEEZY_BASIC_VARIANT_ID"],
+    ["pro", "LEMONSQUEEZY_PRO_VARIANT_ID"],
+    ["enterprise", "LEMONSQUEEZY_ENTERPRISE_VARIANT_ID"],
+  ]) {
+    const configuredId = nonEmptyString(process.env[variable]);
+    if (configuredId && configuredId === variantId) return plan;
+  }
+  return null;
+}
+
+function licenseKeyForOrder(secret, orderId, plan) {
+  const digest = crypto
+    .createHmac("sha256", secret)
+    .update(`license:${orderId}:${plan}`)
+    .digest("hex")
+    .slice(0, 24)
+    .toUpperCase();
+  return `NF-${plan.toUpperCase()}-${digest}`;
+}
+
 function supabaseHeaders(serviceKey, extra = {}) {
   return {
     apikey: serviceKey,
@@ -115,20 +138,11 @@ async function updateProfile(baseUrl, serviceKey, email, profile) {
 async function upsertLicense(baseUrl, serviceKey, license) {
   const licenseUrl = new URL("/rest/v1/licenses", baseUrl);
   licenseUrl.searchParams.set("on_conflict", "lemon_order_id");
-
-  try {
-    await supabaseRequest(licenseUrl, serviceKey, {
-      method: "POST",
-      headers: { Prefer: "resolution=merge-duplicates,return=minimal" },
-      body: JSON.stringify(license),
-    });
-  } catch (error) {
-    if (["42P01", "PGRST204", "PGRST205"].includes(error.code)) {
-      console.warn("Optional licenses table or columns are unavailable.");
-      return;
-    }
-    throw error;
-  }
+  await supabaseRequest(licenseUrl, serviceKey, {
+    method: "POST",
+    headers: { Prefer: "resolution=merge-duplicates,return=minimal" },
+    body: JSON.stringify(license),
+  });
 }
 
 export default async function handler(req, res) {
@@ -212,14 +226,28 @@ export default async function handler(req, res) {
     ?.toLowerCase();
   const recordId = nonEmptyString(payload.data?.id);
   const customerId = nonEmptyString(attributes.customer_id);
-  const variantId = nonEmptyString(attributes.variant_id);
+  const variantId =
+    nonEmptyString(attributes.variant_id) ??
+    nonEmptyString(attributes.first_order_item?.variant_id);
+  const plan = planForVariant(variantId);
   const status = nonEmptyString(attributes.status)?.toLowerCase() ?? "";
+  if (
+    attributes.test_mode === true &&
+    process.env.LEMONSQUEEZY_ALLOW_TEST_MODE !== "true"
+  ) {
+    console.log("License flow: ignoring Lemon Squeezy test-mode event.");
+    return sendJson(res, 200, { ok: true, ignored: true });
+  }
 
   if (!email || !recordId) {
     return sendJson(res, 400, {
       ok: false,
       error: "Webhook payload is missing the email or event ID.",
     });
+  }
+  if (!plan) {
+    console.error("License flow: no plan is configured for Lemon Squeezy variant:", variantId);
+    return sendJson(res, 500, { ok: false, error: "Unknown or unmapped checkout variant." });
   }
 
   if (eventName === "order_created" && status !== "paid") {
@@ -242,28 +270,59 @@ export default async function handler(req, res) {
       : !INACTIVE_EVENTS.has(eventName) &&
         ACTIVE_SUBSCRIPTION_STATUSES.has(status);
   const now = new Date().toISOString();
+  const licenseRecordId =
+    nonEmptyString(attributes.subscription_id) ??
+    (eventName.startsWith("subscription_") ? recordId : nonEmptyString(attributes.order_id)) ??
+    recordId;
+  const licenseKey = licenseKeyForOrder(
+    secret,
+    licenseRecordId,
+    plan,
+  );
 
   try {
     const profile = {
-      plan: isActive ? "basic" : "free",
-      is_pro: isActive,
+      plan: isActive ? plan : "free",
+      tier: isActive ? plan : "free",
+      is_pro: isActive && (plan === "pro" || plan === "enterprise"),
       subscription_status: status || (isActive ? "active" : "inactive"),
+      ...(isActive ? { license_key: licenseKey } : {}),
       updated_at: now,
     };
     if (customerId) profile.lemon_customer_id = customerId;
 
-    await updateProfile(supabaseUrl, serviceKey, email, profile);
     await upsertLicense(supabaseUrl, serviceKey, {
       email,
-      plan: isActive ? "basic" : "free",
+      plan,
+      tier: plan,
       status: isActive ? "active" : "inactive",
-      lemon_order_id: recordId,
+      lemon_order_id: licenseRecordId,
+      license_key: licenseKey,
       subscription_id: eventName.startsWith("subscription_") ? recordId : null,
       ...(customerId ? { lemon_customer_id: customerId } : {}),
       ...(variantId ? { variant_id: variantId } : {}),
     });
+    await updateProfile(supabaseUrl, serviceKey, email, profile);
 
-    console.log("Lemon Squeezy webhook applied:", eventName, "record:", recordId);
+    if (isActive && (eventName === "order_created" || eventName === "subscription_created")) {
+      if (!process.env.RESEND_API_KEY) {
+        throw new Error("RESEND_API_KEY is not configured; license email cannot be delivered.");
+      }
+      if (!process.env.RESEND_FROM_EMAIL) {
+        throw new Error("RESEND_FROM_EMAIL must be a verified production sender.");
+      }
+      const { Resend } = await import("resend");
+      const resend = new Resend(process.env.RESEND_API_KEY);
+      const { error: emailError } = await resend.emails.send({
+        from: process.env.RESEND_FROM_EMAIL,
+        to: email,
+        subject: `Your NoorFinance ${plan} license`,
+        html: `<p>Your NoorFinance ${plan} plan is ready.</p><p>License key: <code>${licenseKey}</code></p><p>Activate it at <a href="https://noorfinance.vercel.app/activate">NoorFinance</a>.</p>`,
+      });
+      if (emailError) throw new Error(`License email failed: ${emailError.message}`);
+    }
+
+    console.log("License flow: Lemon Squeezy webhook applied:", eventName, "plan:", plan);
     return sendJson(res, 200, { ok: true });
   } catch (error) {
     console.error("Lemon Squeezy webhook processing failed:", error);

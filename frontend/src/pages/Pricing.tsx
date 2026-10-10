@@ -1,61 +1,143 @@
-import { Link } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
+import { useAuth } from "../context/AuthContext";
 
-const tiers = [
+const plans = [
   {
-    name: "Free",
-    price: "$0",
-    cadence: " / forever",
-    description: "One calculator to get started.",
-    features: ["1 calculator", "Sukuk vs Bond pricing", "Cash-flow comparison", "Local calculation history"],
-    featured: false,
-    action: "Start Free",
-    href: "/calculators/bond-sukuk",
+    name: "Basic",
+    plan: "basic",
+    price: "2,499",
+    period: "/month",
+    tag: "For learners",
+    features: [
+      "Five core calculators",
+      "Shariah PDF reports",
+      "AAOIFI compliant badge",
+      "Email support",
+    ],
+    url:
+      import.meta.env.NEXT_PUBLIC_LEMON_BASIC_URL ||
+      import.meta.env.VITE_LEMON_BASIC_URL ||
+      "https://noorfinance-pk.lemonsqueezy.com/checkout/buy/a62422df-aef7-4a72-8054-2018913c3549",
+    cta: "Get Basic",
+    popular: false,
   },
   {
     name: "Pro",
-    price: "$19",
-    cadence: "/ month",
-    description: "For deeper financial exploration.",
-    features: ["All calculators", "PDF export", "CSV cash-flow export", "Saved calculation history"],
-    featured: true,
-    action: "Start Pro",
-    href: "/calculators",
+    plan: "pro",
+    price: "5,499",
+    period: "/month",
+    tag: "For businesses",
+    features: [
+      "Every available calculator",
+      "Unlimited calculations",
+      "Team (5 users) + API",
+      "Priority WhatsApp support",
+    ],
+    url:
+      import.meta.env.NEXT_PUBLIC_LEMON_PRO_URL ||
+      import.meta.env.VITE_LEMON_PRO_URL ||
+      "https://noorfinance-pk.lemonsqueezy.com/checkout/buy/4103e815-a388-4058-854b-faaa5d96317c",
+    cta: "Get Pro",
+    popular: true,
   },
   {
     name: "Enterprise",
-    price: "$99",
-    cadence: "/ month",
-    description: "For organizations building at scale.",
-    features: ["All Pro features", "API access", "White-label experience", "Organization support"],
-    featured: false,
-    action: "Explore Enterprise",
-    href: "/about",
+    plan: "enterprise",
+    price: "99,999",
+    period: "lifetime",
+    tag: "For banks",
+    features: [
+      "Everything in Pro",
+      "Custom Sukuk engine",
+      "On-premise deployment option",
+      "Shariah Board consultation",
+    ],
+    url:
+      import.meta.env.NEXT_PUBLIC_LEMON_ENTERPRISE_URL ||
+      import.meta.env.VITE_LEMON_ENTERPRISE_URL ||
+      "https://noorfinance-pk.lemonsqueezy.com/checkout/buy/96677fb3-2beb-44c4-93e3-02265efc66e8",
+    cta: "Get Enterprise",
+    popular: false,
   },
 ];
 
+if (
+  !(import.meta.env.NEXT_PUBLIC_LEMON_BASIC_URL || import.meta.env.VITE_LEMON_BASIC_URL) ||
+  !(import.meta.env.NEXT_PUBLIC_LEMON_PRO_URL || import.meta.env.VITE_LEMON_PRO_URL) ||
+  !(import.meta.env.NEXT_PUBLIC_LEMON_ENTERPRISE_URL || import.meta.env.VITE_LEMON_ENTERPRISE_URL)
+) {
+  console.warn(
+    "License flow: set NEXT_PUBLIC_LEMON_BASIC_URL, NEXT_PUBLIC_LEMON_PRO_URL, and NEXT_PUBLIC_LEMON_ENTERPRISE_URL; using store defaults for missing values.",
+  );
+}
+
 export default function Pricing() {
+  const { user } = useAuth();
+  const navigate = useNavigate();
+
+  function handleBuy(url: string, plan: string) {
+    if (!user?.id || !user.email) {
+      navigate("/signup?next=/pricing");
+      return;
+    }
+    const checkoutUrl = new URL(url);
+    checkoutUrl.searchParams.set("checkout[email]", user.email.trim());
+    checkoutUrl.searchParams.set("checkout[custom][user_id]", user.id);
+    checkoutUrl.searchParams.set("checkout[custom][email]", user.email.trim());
+    checkoutUrl.searchParams.set("checkout[custom][plan]", plan);
+    window.location.assign(checkoutUrl.toString());
+  }
+
   return (
     <div className="standard-page">
       <div className="page-heading centered-heading">
         <p className="eyebrow">SIMPLE, TRANSPARENT PRICING</p>
-        <h1>Start free. Grow when you’re ready.</h1>
-        <p>Choose the plan that fits the way you explore Islamic finance.</p>
+        <h1>Choose the plan for your work.</h1>
+        <p>Subscriptions unlock the calculators and services included in each tier.</p>
       </div>
       <div className="pricing-grid">
-        {tiers.map((tier) => (
-          <article className={`pricing-card${tier.featured ? " pricing-featured" : ""}`} key={tier.name}>
-            {tier.featured ? <span className="popular-label">MOST POPULAR</span> : null}
-            <p className="pricing-name">{tier.name}</p>
-            <p className="pricing-price">{tier.price}<span>{tier.cadence}</span></p>
-            <p className="pricing-description">{tier.description}</p>
-            <ul>{tier.features.map((feature) => <li key={feature}><span aria-hidden="true">✓</span>{feature}</li>)}</ul>
-            <Link className={tier.featured ? "button-primary pricing-action" : "button-secondary pricing-action"} to={tier.href}>
-              {tier.action}
-            </Link>
+        {plans.map((plan) => (
+          <article
+            className={`pricing-card${plan.popular ? " pricing-featured" : ""}`}
+            key={plan.name}
+          >
+            {plan.popular ? <span className="popular-label">MOST POPULAR</span> : null}
+            <p className="pricing-name">{plan.name}</p>
+            <p className="pricing-price">
+              PKR {plan.price}
+              <span>{plan.period}</span>
+            </p>
+            <p className="pricing-description">{plan.tag}</p>
+            <ul>
+              {plan.features.map((feature) => (
+                <li key={feature}><span aria-hidden="true">✓</span>{feature}</li>
+              ))}
+            </ul>
+            <button
+              className={plan.popular ? "button-primary pricing-action" : "button-secondary pricing-action"}
+              type="button"
+              onClick={() => handleBuy(plan.url, plan.plan)}
+            >
+              {plan.cta}
+            </button>
           </article>
         ))}
       </div>
-      <p className="pricing-note">Plans are displayed for preview. Online checkout is not enabled yet.</p>
+      {plans.some((plan) => {
+        if (plan.plan === "basic") {
+          return !import.meta.env.NEXT_PUBLIC_LEMON_BASIC_URL && !import.meta.env.VITE_LEMON_BASIC_URL;
+        }
+        if (plan.plan === "pro") {
+          return !import.meta.env.NEXT_PUBLIC_LEMON_PRO_URL && !import.meta.env.VITE_LEMON_PRO_URL;
+        }
+        return !import.meta.env.NEXT_PUBLIC_LEMON_ENTERPRISE_URL && !import.meta.env.VITE_LEMON_ENTERPRISE_URL;
+      }) ? (
+        <p className="pricing-note">
+          Checkout URL environment variables are not set; using the configured store checkout links.
+          Set NEXT_PUBLIC_LEMON_BASIC_URL, NEXT_PUBLIC_LEMON_PRO_URL, and
+          NEXT_PUBLIC_LEMON_ENTERPRISE_URL for this Vite deployment.
+        </p>
+      ) : null}
     </div>
   );
 }

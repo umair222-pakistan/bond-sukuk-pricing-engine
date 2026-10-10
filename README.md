@@ -41,14 +41,18 @@ Percents like `6` are accepted and converted to decimals.
 
 Payment entitlements are granted only after the server receives a signed Lemon
 Squeezy webhook. The browser never receives a license key from a redirect query
-parameter. Checkout user ID and email must match the corresponding Supabase
-Auth account before its profile is updated.
+parameter. The signed webhook's purchaser email must match a Supabase Auth
+profile before that profile is updated.
 
 1. Apply the Supabase migrations in timestamp order, including
    `20261009210000_profiles_signup_and_payment_orders.sql`,
    `20261010110000_license_key_activation.sql`, and
-   `20261010120000_license_user_binding.sql`. These migrations provision the
-   `licenses` table for license keys and bind activated keys to a Supabase user.
+   `20261010120000_license_user_binding.sql`,
+   `20261010130000_license_activation_timestamp.sql`, and
+   `20261010140000_license_tier_entitlements.sql`. These migrations provision
+   tiered license claiming and profile entitlements. RLS stays enabled;
+   `service_role` is granted server-side access, while authenticated users may
+   only read their own profile.
 2. Set these server-side Vercel environment variables for every deployed
    environment:
    - `SUPABASE_URL`
@@ -56,9 +60,16 @@ Auth account before its profile is updated.
    - `SUPABASE_SERVICE_ROLE_KEY` (required for license lookup and update;
      server-side only; never use a `VITE_` prefix)
    - `LEMONSQUEEZY_WEBHOOK_SECRET`
-   - `RESEND_API_KEY` (server-side key for sending issued license keys)
-   - `LEMONSQUEEZY_PRODUCT_IDS` (comma-separated product IDs allowed for
-     license-key webhooks)
+   - `RESEND_API_KEY` and `RESEND_FROM_EMAIL` (server-side Resend credentials;
+     the sender address must be verified for production)
+   - `LEMONSQUEEZY_BASIC_VARIANT_ID`, `LEMONSQUEEZY_PRO_VARIANT_ID`, and
+     `LEMONSQUEEZY_ENTERPRISE_VARIANT_ID` (map signed webhook `variant_id` values
+     to the persisted subscription tier)
+   - `LICENSE_BRUTE_FORCE_FALLBACK=false` (leave disabled in production; enabling
+     it deliberately grants Pro to any syntactically valid NF-/NOOR- key that
+     is absent from the database)
+   - `NEXT_PUBLIC_LEMON_BASIC_URL`, `NEXT_PUBLIC_LEMON_PRO_URL`, and
+     `NEXT_PUBLIC_LEMON_ENTERPRISE_URL` (public checkout URLs bundled by Vite)
    - Optionally set `LEMONSQUEEZY_ALLOW_TEST_MODE=true` only on a non-production
      deployment to accept test-mode license events. Production ignores them.
    Redeploy after changing environment variables.
@@ -67,29 +78,24 @@ Auth account before its profile is updated.
    and the shared `frontend/license_service.py` module.
 4. In Lemon Squeezy, create a webhook pointing to
    `https://noorfinance.vercel.app/api/webhook/simple`, using the same signing
-   secret as `LEMONSQUEEZY_WEBHOOK_SECRET`. Subscribe to `order_created`,
+   secret as `LEMONSQUEEZY_WEBHOOK_SECRET`. This route delegates to the signed
+   `api/webhooks/lemonsqueezy` handler. Subscribe to `order_created`,
    `order_refunded`, `subscription_created`, `subscription_updated`,
    `subscription_cancelled`, `subscription_expired`, `subscription_paused`,
-   `subscription_resumed`, and `subscription_unpaused`. The existing
-   `/api/webhooks/lemonsqueezy` handler is separate; do not configure both for
-   the same events unless both handlers are intentionally needed.
-5. Apply `20261010100000_noorfinance_license_webhook_idempotency.sql` before
-   enabling the simple endpoint. It requires a valid Lemon Squeezy signature,
-   persists keys in `noorfinance_licenses`, and emails issued keys. Its
-   implementation is under `frontend/api/` for the current Vercel frontend
-   Root Directory; `api/webhook/simple.js` is the repository-root compatibility
-   entry point.
-6. Set the successful checkout redirect to
+   `subscription_resumed`, and `subscription_unpaused`. Both the simple and
+   plural webhook URLs delegate to the same signature-checked handler; configure
+   only one URL in Lemon Squeezy.
+5. Set the successful checkout redirect to
    `https://noorfinance.vercel.app/activate` without license or email query
-   parameters. The customer must complete checkout using the same email as
-   their NoorFinance account.
+   parameters. The checkout requires a signed-in account; the webhook stores
+   the variant-mapped plan and issues a license key to the purchaser email.
 
 The frontend checks `GET /api/license/verify` with the current Supabase access
 token. For paid order and subscription events, the webhook updates the matching
-profile to the Basic plan and upserts the payment record by Lemon Squeezy event
-ID using the Supabase service-role key. Profiles are matched against the
-verified purchaser email in the signed webhook. Local development of these
-Vercel functions requires the Vercel CLI (`vercel dev`) from the repository root.
+profile and upserts the license by Lemon Squeezy order ID using the Supabase
+service-role key. Profiles are matched against the verified purchaser email in
+the signed webhook. Local development of these Vercel functions requires the
+Vercel CLI (`vercel dev`) from the repository root.
 
 The legacy `/api/webhooks/lemonsqueezy` handler lives in the repository-root
 `api/` directory. The current Vercel setup uses `frontend` as its Root
@@ -97,5 +103,6 @@ Directory, so the new `/api/webhook/simple` handler is served from
 `frontend/api/` without changing the existing deployment root.
 
 This repository is a Vite app with Vercel Python functions, not a Next.js
-App Router project. Frontend variables therefore use the `VITE_` prefix;
-`SUPABASE_SERVICE_ROLE_KEY` and `LEMONSQUEEZY_WEBHOOK_SECRET` are server-only.
+App Router project. Frontend variables use `VITE_` or explicitly public
+`NEXT_PUBLIC_` checkout URL prefixes; `SUPABASE_SERVICE_ROLE_KEY` and
+`LEMONSQUEEZY_WEBHOOK_SECRET` are server-only.

@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from "react";
 import { saveCalculation } from "./history";
 import SaveCalculationButton from "../components/SaveCalculationButton";
+import { useLicense } from "../hooks/useLicense";
 
 type ZakatInputs = {
   goldValue: string;
@@ -34,6 +35,9 @@ const assetFields: { key: keyof ZakatInputs; label: string }[] = [
 ];
 
 export default function ZakatCalculator() {
+  const { consumeFreeCalculation, freeCalculationsUsed, tier } = useLicense();
+  const freeLimitReached = tier === "free" && freeCalculationsUsed >= 1;
+  const [hasCalculated, setHasCalculated] = useState(false);
   const [inputs, setInputs] = useState<ZakatInputs>(initialInputs);
   const [error, setError] = useState<string | null>(null);
 
@@ -66,6 +70,11 @@ export default function ZakatCalculator() {
       setError("Enter valid, non-negative amounts for all values.");
       return;
     }
+    if (!consumeFreeCalculation()) {
+      setError("The free plan includes one calculation. Upgrade to continue.");
+      return;
+    }
+    setHasCalculated(true);
     try {
       saveCalculation({
         id: crypto.randomUUID(),
@@ -94,6 +103,7 @@ export default function ZakatCalculator() {
             min="0"
             step="0.01"
             value={inputs.goldPricePerGram}
+            disabled={freeLimitReached}
             onChange={(event) => updateInput("goldPricePerGram", event.target.value)}
             required
           />
@@ -107,6 +117,7 @@ export default function ZakatCalculator() {
                 min="0"
                 step="0.01"
                 value={inputs[key]}
+                disabled={freeLimitReached}
                 onChange={(event) => updateInput(key, event.target.value)}
                 required
               />
@@ -117,7 +128,9 @@ export default function ZakatCalculator() {
         {error ? <p className="err" role="alert">{error}</p> : null}
       </form>
 
-      {!valid ? (
+      {tier === "free" && !hasCalculated ? (
+        <p className="zakat-validation">Submit once to use your free calculation.</p>
+      ) : !valid ? (
         <p className="zakat-validation" role="alert">
           Enter valid non-negative amounts and a gold price per gram greater than zero.
         </p>

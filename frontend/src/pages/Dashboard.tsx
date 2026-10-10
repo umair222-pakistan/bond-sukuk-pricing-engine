@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { useSavedCalculations } from "../hooks/useSavedCalculations";
+import { useLicense } from "../hooks/useLicense";
 import type { SavedCalculation } from "../hooks/useSavedCalculations";
 
 function formatPreview(value: unknown): string {
@@ -68,15 +69,47 @@ function SavedCalculationCard({
 
 export default function Dashboard() {
   const { user } = useAuth();
+  const { plan, tier, isPro, isLoading: subscriptionLoading } = useLicense();
   const { calculations, loading, error, deleteCalculation } = useSavedCalculations();
+  const licenseKey =
+    window.localStorage.getItem("license_key") ??
+    window.localStorage.getItem("noorfinance-license-key");
+  const maskedLicenseKey = licenseKey
+    ? `NF-****-${licenseKey.slice(-4)}`
+    : "No license activated";
+  const calculatorAllowance =
+    tier === "free"
+      ? "1 free calculation"
+      : tier === "basic"
+        ? "5 core calculators"
+        : tier === "pro"
+          ? "All available calculators · unlimited"
+          : "All calculators · enterprise features";
 
   return (
     <div className="standard-page">
       <div className="page-heading">
         <p className="eyebrow">YOUR WORKSPACE</p>
-        <h1>Your Calculations</h1>
+        <h1>Your Dashboard</h1>
         <p>Welcome, {user?.email ?? "there"}</p>
       </div>
+      <section className="subscription-summary" aria-label="Subscription summary">
+        <div>
+          <p className="eyebrow">CURRENT PLAN</p>
+          <h2>{subscriptionLoading ? "Checking…" : plan[0].toUpperCase() + plan.slice(1)}</h2>
+          <p>{calculatorAllowance}</p>
+        </div>
+        <div>
+          <p className="eyebrow">LICENSE KEY</p>
+          <p className="masked-license-key">{maskedLicenseKey}</p>
+          {!subscriptionLoading && !isPro ? (
+            <Link className="button-primary" to="/pricing">
+              {tier === "basic" ? "Upgrade to Pro" : "Choose a plan"}
+            </Link>
+          ) : null}
+        </div>
+      </section>
+      <h2 className="dashboard-section-title">Your calculations</h2>
       {loading ? <p className="saved-loading" role="status">Loading your saved calculations…</p> : null}
       {error ? <p className="page-error" role="alert">{error}</p> : null}
       {!loading && !error && calculations.length ? (

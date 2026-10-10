@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { useLicense } from "../hooks/useLicense";
@@ -6,12 +6,18 @@ import { supabase } from "../lib/supabaseClient";
 
 export default function Activate() {
   const { user, loading } = useAuth();
-  const { hasLicense, refreshLicense } = useLicense();
+  const { hasLicense, isLoading: licenseLoading, refreshLicense } = useLicense();
   const navigate = useNavigate();
   const [licenseKey, setLicenseKey] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (!loading && !licenseLoading && user && hasLicense) {
+      navigate("/dashboard", { replace: true });
+    }
+  }, [hasLicense, licenseLoading, loading, navigate, user]);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -42,14 +48,35 @@ export default function Activate() {
         },
         body: JSON.stringify({ licenseKey: normalizedKey }),
       });
-      const result = (await response.json()) as { ok?: boolean; error?: string };
-      if (!response.ok || result.ok !== true) {
+      const result = (await response.json()) as {
+        ok?: boolean;
+        success?: boolean;
+        plan?: string;
+        tier?: string;
+        error?: string;
+      };
+      if (!response.ok || result.ok !== true || result.success !== true) {
         throw new Error(result.error ?? "Unable to activate this license key.");
       }
 
+      const normalizedPlan = (result.tier ?? result.plan ?? "pro").toLowerCase();
+      if (!["basic", "pro", "enterprise"].includes(normalizedPlan)) {
+        throw new Error("The license response contained an unknown subscription tier.");
+      }
+      console.log("License flow: saving activated tier", normalizedPlan);
+      window.localStorage.setItem("noorfinance_tier", normalizedPlan);
+      window.localStorage.setItem("noorfinance_plan", normalizedPlan);
+      window.localStorage.setItem("tier", normalizedPlan);
+      window.localStorage.setItem(
+        "isPro",
+        String(normalizedPlan === "pro" || normalizedPlan === "enterprise"),
+      );
+      window.localStorage.setItem("license_key", normalizedKey);
       window.localStorage.setItem("noorfinance-license-key", normalizedKey);
       setSuccess(true);
       await refreshLicense();
+      await new Promise((resolve) => window.setTimeout(resolve, 1000));
+      navigate("/dashboard", { replace: true });
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Unable to activate this license key.");
     } finally {

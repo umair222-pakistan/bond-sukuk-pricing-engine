@@ -1,4 +1,5 @@
 import { BrowserRouter, Route, Routes } from "react-router-dom";
+import { useEffect, useState } from "react";
 import type { ReactNode } from "react";
 import About from "./pages/About";
 import Activate from "./pages/Activate";
@@ -16,25 +17,54 @@ import CalculatorLayout from "./components/CalculatorLayout";
 import Footer from "./components/Footer";
 import Navbar from "./components/Navbar";
 import ProtectedRoute from "./components/ProtectedRoute";
-import LicenseGate from "./components/LicenseGate";
+import Paywall from "./components/Paywall";
 import { useLicense } from "./hooks/useLicense";
+import type { SubscriptionTier } from "./hooks/useLicense";
 import Login from "./pages/Login";
 import Signup from "./pages/Signup";
 import { AuthProvider } from "./context/AuthContext";
 import "./site.css";
-import Pricing from "./components/Pricing";
+import Pricing from "./pages/Pricing";
 
-function LicensedCalculator({ children }: { children: ReactNode }) {
-  const { error, hasLicense, isAdmin, isLoading, userEmail } = useLicense();
+const tierRank: Record<SubscriptionTier, number> = {
+  free: 0,
+  basic: 1,
+  pro: 2,
+  enterprise: 3,
+};
+
+function LicensedCalculator({
+  children,
+  requiredTier = "basic",
+}: {
+  children: ReactNode;
+  requiredTier?: SubscriptionTier;
+}) {
+  const { tier, isLoading, canUseFreeCalculation } = useLicense();
+  const [showPaywall, setShowPaywall] = useState(false);
+
+  useEffect(() => {
+    const show = () => setShowPaywall(true);
+    window.addEventListener("subscription:paywall", show);
+    return () => window.removeEventListener("subscription:paywall", show);
+  }, []);
 
   if (isLoading) {
     return <div style={{padding: "40px", textAlign: "center"}}>Loading...</div>;
   }
-  if (!hasLicense) {
-    return <LicenseGate error={error} isAdmin={isAdmin} userEmail={userEmail} />;
+  const tierAllowed =
+    tierRank[tier] >= tierRank[requiredTier] ||
+    (tier === "free" && requiredTier === "basic" && canUseFreeCalculation);
+  if (!tierAllowed) {
+    return <Paywall tier={requiredTier} />;
   }
 
-  return <>{children}</>;
+  return (
+    <>
+      {children}
+      {showPaywall ? <Paywall tier={requiredTier} onClose={() => setShowPaywall(false)} /> : null}
+    </>
+  );
 }
 
 export default function App() {
@@ -104,7 +134,7 @@ export default function App() {
               <Route
                 path="/calculators/musharaka"
                 element={
-                  <LicensedCalculator>
+                  <LicensedCalculator requiredTier="pro">
                     <CalculatorLayout
                       title="Musharaka / Diminishing Musharaka"
                       description="Model a joint venture’s agreed profit sharing and an illustrative diminishing ownership buyout."
@@ -117,7 +147,7 @@ export default function App() {
               <Route
                 path="/calculators/takaful"
                 element={
-                  <LicensedCalculator>
+                  <LicensedCalculator requiredTier="pro">
                     <CalculatorLayout
                       title="Takaful Calculator"
                       description="Estimate an illustrative cooperative protection contribution, Tabarru pool, and potential surplus."

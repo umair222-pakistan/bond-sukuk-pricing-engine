@@ -1,5 +1,7 @@
 import { useMemo, useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
+import Paywall from "../components/Paywall";
+import { useLicense, type SubscriptionTier } from "../hooks/useLicense";
 
 type Category = "Debt" | "Equity" | "Social";
 type Filter = "All" | Category;
@@ -10,22 +12,29 @@ type Calculator = {
   description: string;
   active: boolean;
   href?: string;
+  requiredTier: SubscriptionTier;
   icon: "sukuk" | "murabaha" | "musharaka" | "mudaraba" | "ijara" | "istisna" | "zakat" | "mortgage" | "takaful";
 };
 
 const calculators: Calculator[] = [
-  { name: "Sukuk vs Bond", shortName: "Sukuk vs Bond", category: "Debt", description: "Compare pricing, yields, and cash flows for conventional bonds and Ijara sukuk.", active: true, icon: "sukuk" },
-  { name: "Murabaha", shortName: "Murabaha", category: "Debt", description: "Explore cost-plus sale pricing and payment schedules.", active: true, href: "/calculators/murabaha", icon: "murabaha" },
-  { name: "Musharaka", shortName: "Musharaka", category: "Equity", description: "Model shared ownership and profit allocation.", active: true, href: "/calculators/musharaka", icon: "musharaka" },
-  { name: "Mudaraba", shortName: "Mudaraba", category: "Equity", description: "Illustrate investment partnership profit-sharing.", active: false, icon: "mudaraba" },
-  { name: "Ijara", shortName: "Ijara", category: "Debt", description: "Estimate lease rentals and review an Ijara payment schedule.", active: true, href: "/calculators/ijara", icon: "ijara" },
-  { name: "Istisna", shortName: "Istisna", category: "Debt", description: "Plan staged payments for an asset commissioned for construction.", active: false, icon: "istisna" },
-  { name: "Zakat", shortName: "Zakat", category: "Social", description: "Organize eligible assets for an educational zakat estimate.", active: true, href: "/calculators/zakat", icon: "zakat" },
-  { name: "Halal Mortgage", shortName: "Islamic Mortgage", category: "Debt", description: "Compare illustrative Murabaha, Ijara, and Diminishing Musharakah payments.", active: true, href: "/calculators/islamic-mortgage", icon: "mortgage" },
-  { name: "Takaful", shortName: "Takaful", category: "Social", description: "Estimate cooperative protection contributions, Tabarru, and illustrative surplus.", active: true, href: "/calculators/takaful", icon: "takaful" },
+  { name: "Sukuk vs Bond", shortName: "Sukuk vs Bond", category: "Debt", description: "Compare pricing, yields, and cash flows for conventional bonds and Ijara sukuk.", active: true, requiredTier: "basic", icon: "sukuk" },
+  { name: "Murabaha", shortName: "Murabaha", category: "Debt", description: "Explore cost-plus sale pricing and payment schedules.", active: true, requiredTier: "basic", href: "/calculators/murabaha", icon: "murabaha" },
+  { name: "Musharaka", shortName: "Musharaka", category: "Equity", description: "Model shared ownership and profit allocation.", active: true, requiredTier: "pro", href: "/calculators/musharaka", icon: "musharaka" },
+  { name: "Mudaraba", shortName: "Mudaraba", category: "Equity", description: "Illustrate investment partnership profit-sharing.", active: false, requiredTier: "pro", icon: "mudaraba" },
+  { name: "Ijara", shortName: "Ijara", category: "Debt", description: "Estimate lease rentals and review an Ijara payment schedule.", active: true, requiredTier: "basic", href: "/calculators/ijara", icon: "ijara" },
+  { name: "Istisna", shortName: "Istisna", category: "Debt", description: "Plan staged payments for an asset commissioned for construction.", active: false, requiredTier: "pro", icon: "istisna" },
+  { name: "Zakat", shortName: "Zakat", category: "Social", description: "Organize eligible assets for an educational zakat estimate.", active: true, requiredTier: "basic", href: "/calculators/zakat", icon: "zakat" },
+  { name: "Halal Mortgage", shortName: "Islamic Mortgage", category: "Debt", description: "Compare illustrative Murabaha, Ijara, and Diminishing Musharakah payments.", active: true, requiredTier: "basic", href: "/calculators/islamic-mortgage", icon: "mortgage" },
+  { name: "Takaful", shortName: "Takaful", category: "Social", description: "Estimate cooperative protection contributions, Tabarru, and illustrative surplus.", active: true, requiredTier: "pro", href: "/calculators/takaful", icon: "takaful" },
 ];
 
 const filters: Filter[] = ["All", "Debt", "Equity", "Social"];
+const tierRank: Record<SubscriptionTier, number> = {
+  free: 0,
+  basic: 1,
+  pro: 2,
+  enterprise: 3,
+};
 
 function CalculatorIcon({ name }: { name: Calculator["icon"] }) {
   const paths: Record<Calculator["icon"], ReactNode> = {
@@ -50,6 +59,8 @@ function CalculatorIcon({ name }: { name: Calculator["icon"] }) {
 export default function Calculators() {
   const [filter, setFilter] = useState<Filter>("All");
   const [search, setSearch] = useState("");
+  const [paywallTier, setPaywallTier] = useState<SubscriptionTier | null>(null);
+  const { tier, canUseFreeCalculation, isLoading } = useLicense();
   const filteredCalculators = useMemo(() => {
     const query = search.trim().toLowerCase();
     return calculators.filter((calculator) => {
@@ -110,12 +121,29 @@ export default function Calculators() {
             <h2>{calculator.shortName}</h2>
             <p className="catalog-description">{calculator.description}</p>
             {calculator.active ? (
-              <Link
-                className="catalog-button catalog-button-active"
-                to={calculator.href ?? "/calculators/bond-sukuk"}
-              >
-                Try Now <span aria-hidden="true">→</span>
-              </Link>
+              (() => {
+                const allowed =
+                  tierRank[tier] >= tierRank[calculator.requiredTier] ||
+                  (tier === "free" &&
+                    calculator.requiredTier === "basic" &&
+                    canUseFreeCalculation);
+                return allowed ? (
+                  <Link
+                    className="catalog-button catalog-button-active"
+                    to={calculator.href ?? "/calculators/bond-sukuk"}
+                  >
+                    {isLoading ? "Checking plan…" : "Try Now"} <span aria-hidden="true">→</span>
+                  </Link>
+                ) : (
+                  <button
+                    className="catalog-button catalog-button-disabled"
+                    type="button"
+                    onClick={() => setPaywallTier(calculator.requiredTier)}
+                  >
+                    Upgrade to {calculator.requiredTier}
+                  </button>
+                );
+              })()
             ) : (
               <button className="catalog-button catalog-button-disabled" type="button" disabled>
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -134,6 +162,7 @@ export default function Calculators() {
       <p className="marketplace-count" aria-live="polite">
         Showing {filteredCalculators.length} of {calculators.length} calculators
       </p>
+      {paywallTier ? <Paywall tier={paywallTier} onClose={() => setPaywallTier(null)} /> : null}
     </div>
   );
 }

@@ -1,6 +1,7 @@
 import { useMemo, useState, type FormEvent } from "react";
 import { saveCalculation } from "./history";
 import SaveCalculationButton from "../components/SaveCalculationButton";
+import { useLicense } from "../hooks/useLicense";
 
 type Installment = {
   month: number;
@@ -14,6 +15,9 @@ const money = new Intl.NumberFormat("en-US", { minimumFractionDigits: 2, maximum
 const fmtPercent = new Intl.NumberFormat("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 export default function MurabahaCalculator() {
+  const { consumeFreeCalculation, freeCalculationsUsed, tier } = useLicense();
+  const freeLimitReached = tier === "free" && freeCalculationsUsed >= 1;
+  const [hasCalculated, setHasCalculated] = useState(false);
   const [assetCost, setAssetCost] = useState("10000");
   const [profitRate, setProfitRate] = useState("8");
   const [tenureMonths, setTenureMonths] = useState("24");
@@ -60,6 +64,11 @@ export default function MurabahaCalculator() {
       setError("Enter a positive asset cost and tenure, and a down payment no greater than the total payable.");
       return;
     }
+    if (!consumeFreeCalculation()) {
+      setError("The free plan includes one calculation. Upgrade to continue.");
+      return;
+    }
+    setHasCalculated(true);
     try {
       saveCalculation({
         id: crypto.randomUUID(),
@@ -91,6 +100,7 @@ export default function MurabahaCalculator() {
             step="0.01"
             required
             value={assetCost}
+            disabled={freeLimitReached}
             onChange={(event) => setAssetCost(event.target.value)}
           />
         </label>
@@ -102,6 +112,7 @@ export default function MurabahaCalculator() {
             step="0.01"
             required
             value={profitRate}
+            disabled={freeLimitReached}
             onChange={(event) => setProfitRate(event.target.value)}
           />
         </label>
@@ -113,6 +124,7 @@ export default function MurabahaCalculator() {
             step="1"
             required
             value={tenureMonths}
+            disabled={freeLimitReached}
             onChange={(event) => setTenureMonths(event.target.value)}
           />
         </label>
@@ -124,6 +136,7 @@ export default function MurabahaCalculator() {
             step="0.01"
             required
             value={downPayment}
+            disabled={freeLimitReached}
             onChange={(event) => setDownPayment(event.target.value)}
           />
         </label>
@@ -131,7 +144,9 @@ export default function MurabahaCalculator() {
         {error ? <p className="err" role="alert">{error}</p> : null}
       </form>
 
-      {!hasValidInputs ? (
+      {tier === "free" && !hasCalculated ? (
+        <p className="murabaha-validation">Submit once to use your free calculation.</p>
+      ) : !hasValidInputs ? (
         <p className="murabaha-validation" role="alert">
           Check the entered values. Down payment must not exceed total payable.
         </p>

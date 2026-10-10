@@ -3,6 +3,7 @@ import Plot from "react-plotly.js";
 import "../App.css";
 import { saveCalculation } from "./history";
 import SaveCalculationButton from "../components/SaveCalculationButton";
+import { useLicense } from "../hooks/useLicense";
 
 type Kind = "bond" | "sukuk";
 
@@ -90,6 +91,8 @@ function buildMonthlyCashflows(face: number, coupon: number, years: number): Mon
 }
 
 export default function App() {
+  const { consumeFreeCalculation, freeCalculationsUsed, tier } = useLicense();
+  const freeLimitReached = tier === "free" && freeCalculationsUsed >= 1;
   const [kind, setKind] = useState<Kind>("bond");
   const [face, setFace] = useState("1000");
   const [coupon, setCoupon] = useState("6");
@@ -148,6 +151,10 @@ export default function App() {
         requestPrice("/api/price/bond"),
         requestPrice("/api/price/sukuk"),
       ]);
+      if (!consumeFreeCalculation()) {
+        setError("The free plan includes one calculation. Upgrade to continue.");
+        return;
+      }
       const monthlyCashflows = buildMonthlyCashflows(body.face, body.coupon, body.years);
       setResult(kind === "bond" ? bond : sukuk);
       setPricedKind(kind);
@@ -267,23 +274,23 @@ export default function App() {
 
           <label>
             Face value
-            <input value={face} onChange={(e) => setFace(e.target.value)} type="number" min={1} step="1" required />
+            <input value={face} onChange={(e) => setFace(e.target.value)} type="number" min={1} step="1" required disabled={freeLimitReached} />
           </label>
           <label>
             {kind === "sukuk" ? "Rental rate % p.a." : "Coupon % p.a."}
-            <input value={coupon} onChange={(e) => setCoupon(e.target.value)} type="number" min={0} step="0.01" required />
+            <input value={coupon} onChange={(e) => setCoupon(e.target.value)} type="number" min={0} step="0.01" required disabled={freeLimitReached} />
           </label>
           <label>
             Yield % p.a.
-            <input value={yieldRate} onChange={(e) => setYieldRate(e.target.value)} type="number" min={0} step="0.01" required />
+            <input value={yieldRate} onChange={(e) => setYieldRate(e.target.value)} type="number" min={0} step="0.01" required disabled={freeLimitReached} />
           </label>
           <label>
             Years
-            <input value={years} onChange={(e) => setYears(e.target.value)} type="number" min={0.5} step="0.5" required />
+            <input value={years} onChange={(e) => setYears(e.target.value)} type="number" min={0.5} step="0.5" required disabled={freeLimitReached} />
           </label>
           <label>
             Frequency
-            <select value={freq} onChange={(e) => setFreq(e.target.value)}>
+            <select value={freq} onChange={(e) => setFreq(e.target.value)} disabled={freeLimitReached}>
               <option value="1">Annual</option>
               <option value="2">Semiannual</option>
               <option value="4">Quarterly</option>
