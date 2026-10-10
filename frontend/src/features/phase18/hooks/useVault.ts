@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 
 export const DEALS_STORAGE_KEY = "noorfinance_deals";
+export const VAULT_BACKUP_STORAGE_KEY = "vault-local-backup";
 export const COMPARE_STORAGE_KEY = "noorfinance_compare";
 
 export type VaultDeal = {
@@ -32,21 +33,34 @@ function isVaultDeal(value: unknown): value is VaultDeal {
   );
 }
 
-function readDeals(): { deals: VaultDeal[]; error: string | null } {
+function readDealsFromKey(key: string): { deals: VaultDeal[]; error: string | null; present: boolean } {
   try {
-    const stored = window.localStorage.getItem(DEALS_STORAGE_KEY);
-    if (!stored) return { deals: [], error: null };
+    const stored = window.localStorage.getItem(key);
+    if (stored === null) return { deals: [], error: null, present: false };
     const parsed: unknown = JSON.parse(stored);
     if (!Array.isArray(parsed) || !parsed.every(isVaultDeal)) {
       throw new Error("Saved vault data has an unexpected format.");
     }
-    return { deals: parsed, error: null };
+    return { deals: parsed, error: null, present: true };
   } catch (cause) {
     return {
       deals: [],
       error: cause instanceof Error ? cause.message : "Unable to read saved vault data.",
+      present: false,
     };
   }
+}
+
+function readDeals(): { deals: VaultDeal[]; error: string | null } {
+  const primary = readDealsFromKey(DEALS_STORAGE_KEY);
+  const backup = readDealsFromKey(VAULT_BACKUP_STORAGE_KEY);
+  if (primary.present) return { deals: primary.deals, error: primary.error };
+  return {
+    deals: [...backup.deals].sort(
+      (left, right) => new Date(right.created_at).getTime() - new Date(left.created_at).getTime(),
+    ),
+    error: primary.error ?? backup.error,
+  };
 }
 
 export function useVault() {
@@ -55,7 +69,9 @@ export function useVault() {
   const [error, setError] = useState<string | null>(initial.error);
 
   const persistDeals = useCallback((nextDeals: VaultDeal[]) => {
-    window.localStorage.setItem(DEALS_STORAGE_KEY, JSON.stringify(nextDeals));
+    const serialized = JSON.stringify(nextDeals);
+    window.localStorage.setItem(DEALS_STORAGE_KEY, serialized);
+    window.localStorage.setItem(VAULT_BACKUP_STORAGE_KEY, serialized);
     setDeals(nextDeals);
     setError(null);
     window.dispatchEvent(new Event("noorfinance:vault-updated"));

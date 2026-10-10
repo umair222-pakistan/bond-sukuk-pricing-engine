@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+import os
 from typing import Literal
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field, field_validator
+import uvicorn
 
 app = FastAPI(
     title="Bond & Sukuk Pricing Engine",
@@ -14,8 +16,13 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
-    allow_credentials=True,
+    allow_origins=[
+        "https://noorfinance.vercel.app",
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        "*",
+    ],
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -224,6 +231,16 @@ def health() -> dict:
     return {"status": "ok"}
 
 
+@app.get("/health")
+def root_health() -> dict:
+    return {"status": "ok", "service": "NoorFinance API"}
+
+
+@app.get("/")
+def root() -> dict:
+    return {"status": "ok", "service": "NoorFinance API"}
+
+
 @app.post("/api/price/bond")
 def price_bond(req: InstrumentRequest) -> dict:
     return value_instrument(req, principal_at_maturity=True, kind="conventional_bond")
@@ -283,3 +300,8 @@ def yield_curve() -> dict:
         "source": "illustrative par government curve",
         "points": YIELD_CURVE,
     }
+
+
+if __name__ == "__main__":
+    port = int(os.getenv("PORT", "8000"))
+    uvicorn.run("main:app", host="0.0.0.0", port=port)

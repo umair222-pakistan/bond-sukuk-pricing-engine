@@ -6,20 +6,10 @@ import SaveCalculationButton from "../components/SaveCalculationButton";
 import { useLicense } from "../hooks/useLicense";
 import ActionBar from "../features/phase18/components/ActionBar";
 import { useVault } from "../features/phase18/hooks/useVault";
+import { apiFetch, isOfflineResponse } from "../api/config";
+import { priceInstrument, type PricingResult } from "../lib/pricingEngine";
 
 type Kind = "bond" | "sukuk";
-
-type Cashflow = {
-  period: number;
-  time_years: number;
-  coupon_or_rental: number;
-  principal: number;
-  cashflow: number;
-  df: number;
-  pv: number;
-};
-
-type CurvePoint = { yield: number; price: number };
 
 type MonthlyCashflow = {
   date: Date;
@@ -29,33 +19,7 @@ type MonthlyCashflow = {
   balance: number;
 };
 
-type PriceResult = {
-  instrument: string;
-  price: number;
-  premium_discount: number;
-  quote_vs_par: string;
-  macaulay_duration: number;
-  modified_duration: number;
-  convexity: number;
-  dv01: number;
-  closed_form: {
-    periodic_payment: number;
-    a_angle_n: number;
-    s_angle_n: number;
-    v_n: number;
-    pv_coupons_or_rentals: number;
-    pv_principal: number;
-    price: number;
-  };
-  cashflows: Cashflow[];
-  price_yield_curve: CurvePoint[];
-  structure?: {
-    type: string;
-    rental: string;
-    maturity: string;
-    note: string;
-  };
-};
+type PriceResult = PricingResult;
 
 type Comparison = {
   bond: PriceResult;
@@ -109,27 +73,30 @@ export default function App() {
   const [comparison, setComparison] = useState<Comparison | null>(null);
   const [pricedKind, setPricedKind] = useState<Kind>("bond");
   const [curveHint, setCurveHint] = useState<string>("");
+  const [offlineMessage, setOfflineMessage] = useState<string | null>(null);
 
   useEffect(() => {
-    fetch("/api/yield-curve")
-      .then((r) => r.json())
-      .then((d) => {
-        const ten = Number(years);
-        const nearest = [...d.points].sort(
-          (a: { tenor_years: number }, b: { tenor_years: number }) =>
-            Math.abs(a.tenor_years - ten) - Math.abs(b.tenor_years - ten)
+    let active = true;
+    void apiFetch("/api/yield-curve").then(async (response) => {
+      if (!active || isOfflineResponse(response) || !response.ok) return;
+      try {
+        const data: { points?: { tenor_years: number; yield: number; label: string }[] } = await response.json();
+        const nearest = [...(data.points ?? [])].sort(
+          (left, right) => Math.abs(left.tenor_years - Number(years)) - Math.abs(right.tenor_years - Number(years)),
         )[0];
-        if (nearest) {
-          setCurveHint(`${nearest.label} par yield ${(nearest.yield * 100).toFixed(2)}%`);
-        }
-      })
-      .catch(() => setCurveHint(""));
+        if (nearest && active) setCurveHint(`${nearest.label} par yield ${(nearest.yield * 100).toFixed(2)}%`);
+      } catch {
+        if (active) setCurveHint("");
+      }
+    });
+    return () => { active = false; };
   }, [years]);
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
     setLoading(true);
     setError(null);
+    setOfflineMessage(null);
     const body = {
       face: Number(face),
       coupon: Number(coupon),
@@ -138,22 +105,8 @@ export default function App() {
       freq: Number(freq),
     };
     try {
-      const requestPrice = async (endpoint: string): Promise<PriceResult> => {
-        const response = await fetch(endpoint, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(body),
-        });
-        if (!response.ok) {
-          const message = await response.text();
-          throw new Error(message || `HTTP ${response.status}`);
-        }
-        return (await response.json()) as PriceResult;
-      };
-      const [bond, sukuk] = await Promise.all([
-        requestPrice("/api/price/bond"),
-        requestPrice("/api/price/sukuk"),
-      ]);
+      const bond = priceInstrument(body, "bond");
+      const sukuk = priceInstrument(body, "sukuk");
       if (!consumeFreeCalculation()) {
         setError("The free plan includes one calculation. Upgrade to continue.");
         return;
@@ -171,6 +124,11 @@ export default function App() {
         bondIncome: bond.cashflows.reduce((total, cashflow) => total + cashflow.coupon_or_rental, 0),
         sukukIncome: sukuk.cashflows.reduce((total, cashflow) => total + cashflow.coupon_or_rental, 0),
         yieldRate: body.yield,
+      });
+      void apiFetch("/health").then((response) => {
+        setOfflineMessage(isOfflineResponse(response)
+          ? "Offline mode: calculated locally, backend sleeping. Your vault stays saved in this browser."
+          : null);
       });
       try {
         saveCalculation({
@@ -302,6 +260,7 @@ export default function App() {
           </label>
 
           {curveHint ? <p className="hint">Benchmark {curveHint}</p> : null}
+          {offlineMessage ? <p className="hint" role="status">{offlineMessage}</p> : null}
 
           <button className="go" type="submit" disabled={loading}>
             {loading ? "Pricing…" : "Price instrument"}
