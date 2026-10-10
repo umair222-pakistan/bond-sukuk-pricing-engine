@@ -5,6 +5,7 @@ import { saveCalculation } from "./history";
 import SaveCalculationButton from "../components/SaveCalculationButton";
 import { useLicense } from "../hooks/useLicense";
 import ActionBar from "../features/phase18/components/ActionBar";
+import { useVault } from "../features/phase18/hooks/useVault";
 
 type Kind = "bond" | "sukuk";
 
@@ -93,6 +94,7 @@ function buildMonthlyCashflows(face: number, coupon: number, years: number): Mon
 
 export default function App() {
   const { consumeFreeCalculation, freeCalculationsUsed, tier } = useLicense();
+  const { deals: vaultDeals } = useVault();
   const freeLimitReached = tier === "free" && freeCalculationsUsed >= 1;
   const [kind, setKind] = useState<Kind>("bond");
   const [face, setFace] = useState("1000");
@@ -365,6 +367,7 @@ export default function App() {
           {result ? (
             <ActionBar
               dealType={pricedKind === "sukuk" ? "Ijara Sukuk" : "Bond"}
+              vaultDealCount={vaultDeals.length}
               inputs={{
                 instrument: pricedKind,
                 face: Number(face),
@@ -384,6 +387,13 @@ export default function App() {
                 dv01: result.dv01,
                 bondPrice: comparison?.bond.price ?? null,
                 sukukPrice: comparison?.sukuk.price ?? null,
+                cashflows: cashflows.map(({ date, rental, principal, total, balance }) => ({
+                  date: date.toISOString(),
+                  rental,
+                  principal,
+                  total,
+                  balance,
+                })),
               }}
             />
           ) : null}

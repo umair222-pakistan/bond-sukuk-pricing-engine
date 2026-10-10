@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 export const DEALS_STORAGE_KEY = "noorfinance_deals";
 export const COMPARE_STORAGE_KEY = "noorfinance_compare";
@@ -11,6 +11,7 @@ export type VaultDeal = {
   results: Record<string, unknown>;
   created_at: string;
   share_token?: string;
+  tags?: string[];
 };
 
 function isVaultDeal(value: unknown): value is VaultDeal {
@@ -21,6 +22,7 @@ function isVaultDeal(value: unknown): value is VaultDeal {
     typeof deal.calculator_type === "string" &&
     typeof deal.title === "string" &&
     typeof deal.created_at === "string" &&
+    (deal.tags === undefined || (Array.isArray(deal.tags) && deal.tags.every((tag) => typeof tag === "string"))) &&
     typeof deal.inputs === "object" &&
     deal.inputs !== null &&
     !Array.isArray(deal.inputs) &&
@@ -56,6 +58,21 @@ export function useVault() {
     window.localStorage.setItem(DEALS_STORAGE_KEY, JSON.stringify(nextDeals));
     setDeals(nextDeals);
     setError(null);
+    window.dispatchEvent(new Event("noorfinance:vault-updated"));
+  }, []);
+
+  useEffect(() => {
+    const refreshDeals = () => {
+      const latest = readDeals();
+      setDeals(latest.deals);
+      setError(latest.error);
+    };
+    window.addEventListener("storage", refreshDeals);
+    window.addEventListener("noorfinance:vault-updated", refreshDeals);
+    return () => {
+      window.removeEventListener("storage", refreshDeals);
+      window.removeEventListener("noorfinance:vault-updated", refreshDeals);
+    };
   }, []);
 
   const saveDeal = useCallback(
@@ -110,5 +127,36 @@ export function useVault() {
     [persistDeals],
   );
 
-  return { deals, error, listDeals, saveDeal, deleteDeal, setShareToken };
+  const updateDeal = useCallback(
+    (id: string, changes: Partial<Pick<VaultDeal, "title" | "tags">>) => {
+      const latest = readDeals();
+      if (latest.error) throw new Error(latest.error);
+      const nextDeals = latest.deals.map((deal) => deal.id === id ? { ...deal, ...changes } : deal);
+      if (!nextDeals.some((deal) => deal.id === id)) throw new Error("Deal not found in the local vault.");
+      persistDeals(nextDeals);
+    },
+    [persistDeals],
+  );
+
+  const duplicateDeal = useCallback(
+    (id: string) => {
+      const latest = readDeals();
+      if (latest.error) throw new Error(latest.error);
+      const original = latest.deals.find((deal) => deal.id === id);
+      if (!original) throw new Error("Deal not found in the local vault.");
+      const duplicate: VaultDeal = {
+        ...original,
+        id: crypto.randomUUID(),
+        title: `${original.title} (Copy)`,
+        created_at: new Date().toISOString(),
+        share_token: undefined,
+        tags: original.tags ? [...original.tags] : [],
+      };
+      persistDeals([duplicate, ...latest.deals]);
+      return duplicate;
+    },
+    [persistDeals],
+  );
+
+  return { deals, error, listDeals, saveDeal, deleteDeal, setShareToken, updateDeal, duplicateDeal };
 }

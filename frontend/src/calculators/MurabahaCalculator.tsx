@@ -1,6 +1,8 @@
 import { useMemo, useState, type FormEvent } from "react";
 import { saveCalculation } from "./history";
 import SaveCalculationButton from "../components/SaveCalculationButton";
+import ActionBar from "../features/phase18/components/ActionBar";
+import { useVault } from "../features/phase18/hooks/useVault";
 import { useLicense } from "../hooks/useLicense";
 
 type Installment = {
@@ -16,6 +18,7 @@ const fmtPercent = new Intl.NumberFormat("en-US", { minimumFractionDigits: 2, ma
 
 export default function MurabahaCalculator() {
   const { consumeFreeCalculation, freeCalculationsUsed, tier } = useLicense();
+  const { deals: vaultDeals } = useVault();
   const freeLimitReached = tier === "free" && freeCalculationsUsed >= 1;
   const [hasCalculated, setHasCalculated] = useState(false);
   const [assetCost, setAssetCost] = useState("10000");
@@ -221,8 +224,16 @@ export default function MurabahaCalculator() {
         calculatorType="Murabaha"
         disabled={!hasValidInputs}
         inputs={{ assetCost: cost, profitRate: rate, tenureMonths: tenure, downPayment: down }}
-        results={{ totalPayable, monthlyInstallment, profitAmount, profitRatio }}
+        results={{ totalPayable, monthlyInstallment, profitAmount, profitRatio, amortizationSchedule: installments }}
       />
+      {hasCalculated && hasValidInputs ? (
+        <ActionBar
+          dealType="Murabaha"
+          vaultDealCount={vaultDeals.length}
+          inputs={{ assetCost: cost, profitRate: rate, tenureMonths: tenure, downPayment: down }}
+          results={{ totalPayable, monthlyInstallment, monthlyPayment: monthlyInstallment, profitAmount, totalProfit: profitAmount, profitRatio, amortizationSchedule: installments }}
+        />
+      ) : null}
     </div>
   );
 }

@@ -1,11 +1,14 @@
 import { useMemo, useState } from "react";
 import SaveCalculationButton from "../components/SaveCalculationButton";
+import ActionBar from "../features/phase18/components/ActionBar";
+import { useVault } from "../features/phase18/hooks/useVault";
 
 type Model = "Wakalah" | "Mudarabah";
 
 const money = new Intl.NumberFormat("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 export default function TakafulCalculator() {
+  const { deals: vaultDeals } = useVault();
   const [age, setAge] = useState("35");
   const [coverageAmount, setCoverageAmount] = useState("100000");
   const [termYears, setTermYears] = useState("20");
@@ -74,6 +77,14 @@ export default function TakafulCalculator() {
         </>
       )}
       <SaveCalculationButton calculatorType="Takaful" inputs={inputs} results={results} disabled={!valid} />
+      {valid ? (
+        <ActionBar
+          dealType="Takaful"
+          vaultDealCount={vaultDeals.length}
+          inputs={inputs}
+          results={{ ...results, monthlyPayment: monthlyContribution, totalProfit: total, yield: annualRiskRatePercent }}
+        />
+      ) : null}
     </div>
   );
 }

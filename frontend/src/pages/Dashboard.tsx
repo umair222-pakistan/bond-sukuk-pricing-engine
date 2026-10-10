@@ -96,6 +96,34 @@ export default function Dashboard() {
         : tier === "pro"
           ? "All available calculators · unlimited"
           : "All calculators · enterprise features";
+  const monthlyCutoff = new Date();
+  monthlyCutoff.setDate(1);
+  monthlyCutoff.setHours(0, 0, 0, 0);
+  const dealsThisMonth = deals.filter((deal) => new Date(deal.created_at) >= monthlyCutoff).length;
+  const amountKey = /amount|cost|capital|price|face|coverage|wealth|principal|investment|project/i;
+  const dealAmounts = deals
+    .map((deal) => Object.entries(deal.inputs).find(([key, value]) => amountKey.test(key) && typeof value === "number"))
+    .map((entry) => entry?.[1])
+    .filter((value): value is number => typeof value === "number");
+  const averageDealSize = dealAmounts.length
+    ? new Intl.NumberFormat("en-US", { maximumFractionDigits: 2 }).format(
+        dealAmounts.reduce((sum, value) => sum + value, 0) / dealAmounts.length,
+      )
+    : "—";
+  const calculatorCounts = new Map<string, number>();
+  deals.forEach((deal) => calculatorCounts.set(deal.calculator_type, (calculatorCounts.get(deal.calculator_type) ?? 0) + 1));
+  const mostUsedCalculator = [...calculatorCounts.entries()].sort((left, right) => right[1] - left[1])[0]?.[0] ?? "—";
+  const folderCount = new Set(deals.flatMap((deal) => deal.tags ?? [])).size;
+
+  function timeAgo(createdAt: string): string {
+    const elapsedMinutes = Math.max(0, Math.floor((Date.now() - new Date(createdAt).getTime()) / 60_000));
+    if (elapsedMinutes < 1) return "just now";
+    if (elapsedMinutes < 60) return `${elapsedMinutes} min${elapsedMinutes === 1 ? "" : "s"} ago`;
+    const elapsedHours = Math.floor(elapsedMinutes / 60);
+    if (elapsedHours < 24) return `${elapsedHours} hour${elapsedHours === 1 ? "" : "s"} ago`;
+    const elapsedDays = Math.floor(elapsedHours / 24);
+    return `${elapsedDays} day${elapsedDays === 1 ? "" : "s"} ago`;
+  }
 
   return (
     <div className="standard-page">
@@ -110,7 +138,7 @@ export default function Dashboard() {
       >
         <article className="saved-calculation-card">
           <p className="eyebrow">TOTAL DEALS</p>
-          <h2>{deals.length}</h2>
+          <h2>{deals.length} <span className="saved-calculator-badge">Folders · {folderCount}</span></h2>
           <Link to="/vault">Open vault</Link>
         </article>
         <article className="saved-calculation-card">
@@ -129,6 +157,28 @@ export default function Dashboard() {
           ) : <p>No recent deals</p>}
           {vaultError ? <p className="page-error" role="alert">{vaultError}</p> : null}
         </article>
+      </section>
+      <section className="saved-calculation-card" aria-labelledby="quick-stats-title" style={{ marginBottom: 20 }}>
+        <h2 id="quick-stats-title">Quick Stats</h2>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 14 }}>
+          <div><p className="eyebrow">AVERAGE DEAL SIZE</p><strong>{averageDealSize}</strong></div>
+          <div><p className="eyebrow">MOST USED CALCULATOR</p><strong>{mostUsedCalculator}</strong></div>
+          <div><p className="eyebrow">DEALS THIS MONTH</p><strong>{dealsThisMonth}</strong></div>
+        </div>
+      </section>
+      <section className="saved-calculation-card" aria-labelledby="recent-activity-title" style={{ marginBottom: 20 }}>
+        <h2 id="recent-activity-title">Recent Activity</h2>
+        {deals.length ? (
+          <ol style={{ marginBottom: 0 }}>
+            {deals.slice(0, 5).map((deal) => (
+              <li key={deal.id}>Saved deal “{deal.title}” · {timeAgo(deal.created_at)}</li>
+            ))}
+          </ol>
+        ) : <p>No recent activity.</p>}
+      </section>
+      <section className="saved-calculation-card" aria-label="More Pro tools" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, flexWrap: "wrap", marginBottom: 20 }}>
+        <div><h2>Need API access?</h2><p>View your license key and embed code.</p><Link to="/api-keys">Open API keys</Link></div>
+        <Link className="button-primary" to="/compare">Try Comparison</Link>
       </section>
       <section className="subscription-summary" aria-label="Subscription summary">
         <div>

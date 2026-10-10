@@ -4,6 +4,15 @@ type DealPDFData = {
   results: Record<string, unknown>;
 };
 
+type ComparisonDeal = DealPDFData & {
+  calculator_type: string;
+  created_at: string;
+  inputs: Record<string, unknown>;
+  results: Record<string, unknown>;
+};
+
+type ComparisonRow = { label: string; values: unknown[] };
+
 function displayLabel(value: string): string {
   return value.replace(/([A-Z])/g, " $1").replace(/_/g, " ");
 }
@@ -72,4 +81,91 @@ export async function generateDealPDF(deal: DealPDFData): Promise<void> {
   pdf.setTextColor(100, 107, 101);
   pdf.text("Sharia-compliant estimate", margin, footerY);
   pdf.save(`${deal.title.toLowerCase().replace(/[^a-z0-9]+/g, "-") || "noorfinance-deal"}.pdf`);
+}
+
+export async function generateComparisonPdf(deals: ComparisonDeal[]): Promise<void> {
+  if (!deals.length) throw new Error("Select at least one deal to export a comparison.");
+  const { jsPDF } = await import("jspdf");
+  const pdf = new jsPDF({ orientation: "landscape" });
+  const pageWidth = pdf.internal.pageSize.getWidth();
+  const pageHeight = pdf.internal.pageSize.getHeight();
+  const margin = 18;
+  const labelWidth = 48;
+  const columnWidth = (pageWidth - margin * 2 - labelWidth) / deals.length;
+  let y = 30;
+
+  pdf.setFont("helvetica", "bold");
+  pdf.setFontSize(20);
+  pdf.setTextColor(26, 61, 46);
+  pdf.text("NoorFinance", margin, y);
+  y += 9;
+  pdf.setFontSize(14);
+  pdf.text("Deal comparison", margin, y);
+  y += 10;
+
+  const rows: ComparisonRow[] = [
+    ...new Set(deals.flatMap((deal) => Object.keys(deal.inputs)))
+  ].map((key) => ({
+    label: `Input: ${displayLabel(key)}`,
+    values: deals.map((deal) => deal.inputs[key]),
+  }));
+  const resultRows: ComparisonRow[] = [
+    ...new Set(deals.flatMap((deal) => Object.keys(deal.results)))
+  ].filter((key) => !deals.some((deal) => Array.isArray(deal.results[key])))
+    .map((key) => ({
+      label: `Result: ${displayLabel(key)}`,
+      values: deals.map((deal) => deal.results[key]),
+    }));
+  rows.push(...resultRows);
+
+  const drawCellText = (text: string, x: number, top: number, width: number) => {
+    const lines = pdf.splitTextToSize(text, width - 4) as string[];
+    pdf.text(lines, x + 2, top + 5);
+    return lines.length;
+  };
+
+  pdf.setFontSize(9);
+  pdf.setDrawColor(220, 227, 221);
+  pdf.setFont("helvetica", "bold");
+  const headerHeight = 14;
+  pdf.rect(margin, y, labelWidth, headerHeight);
+  drawCellText("Measure", margin, y, labelWidth);
+  deals.forEach((deal, index) => {
+    const x = margin + labelWidth + index * columnWidth;
+    pdf.rect(x, y, columnWidth, headerHeight);
+    drawCellText(`${deal.title} (${deal.calculator_type})`, x, y, columnWidth);
+  });
+  y += headerHeight;
+
+  for (const row of rows) {
+    pdf.setFont("helvetica", "normal");
+    pdf.setFontSize(8);
+    const labelLines = pdf.splitTextToSize(row.label, labelWidth - 4) as string[];
+    const valueLines = row.values.map((value) =>
+      pdf.splitTextToSize(displayValue(value), columnWidth - 4) as string[],
+    );
+    const height = Math.max(9, Math.max(labelLines.length, ...valueLines.map((lines) => lines.length)) * 4.5 + 3);
+    if (y + height > pageHeight - 16) {
+      pdf.addPage();
+      y = 20;
+    }
+    pdf.rect(margin, y, labelWidth, height);
+    pdf.text(labelLines, margin + 2, y + 5);
+    row.values.forEach((_, index) => {
+      const x = margin + labelWidth + index * columnWidth;
+      pdf.rect(x, y, columnWidth, height);
+      pdf.text(valueLines[index], x + 2, y + 5);
+    });
+    y += height;
+  }
+
+  if (y > pageHeight - 12) {
+    pdf.addPage();
+    y = 20;
+  }
+  pdf.setFont("helvetica", "italic");
+  pdf.setFontSize(9);
+  pdf.setTextColor(100, 107, 101);
+  pdf.text("Sharia-compliant estimate", margin, y);
+  pdf.save("noorfinance-deal-comparison.pdf");
 }

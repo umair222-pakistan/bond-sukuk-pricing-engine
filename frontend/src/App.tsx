@@ -31,6 +31,7 @@ import Pricing from "./pages/Pricing";
 const VaultPage = lazy(() => import("./features/phase18/pages/VaultPage"));
 const SharedDealPage = lazy(() => import("./features/phase18/pages/SharedDealPage"));
 const ApiKeysPage = lazy(() => import("./features/phase18/pages/ApiKeysPage"));
+const ComparePage = lazy(() => import("./features/phase18/pages/ComparePage"));
 
 function LicensedCalculator({
   children,
@@ -194,6 +195,7 @@ export default function App() {
                 }
               />
               <Route path="/vault" element={<VaultPage />} />
+              <Route path="/compare" element={<ProtectedRoute><ComparePage /></ProtectedRoute>} />
               <Route path="/share/:token" element={<SharedDealPage />} />
               <Route path="/api-keys" element={<ApiKeysPage />} />
               <Route path="/about" element={<About />} />

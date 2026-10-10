@@ -2,6 +2,8 @@ import { useMemo, useState, type FormEvent } from "react";
 import { saveCalculation } from "./history";
 import SaveCalculationButton from "../components/SaveCalculationButton";
 import { useLicense } from "../hooks/useLicense";
+import ActionBar from "../features/phase18/components/ActionBar";
+import { useVault } from "../features/phase18/hooks/useVault";
 
 type Inputs = {
   propertyPrice: string;
@@ -91,6 +93,7 @@ function buildStackedAreaPath(
 
 export default function IjaraCalculator() {
   const { consumeFreeCalculation, freeCalculationsUsed, tier } = useLicense();
+  const { deals: vaultDeals } = useVault();
   const freeLimitReached = tier === "free" && freeCalculationsUsed >= 1;
   const [inputs, setInputs] = useState<Inputs>(initialInputs);
   const [error, setError] = useState<string | null>(null);
@@ -334,8 +337,22 @@ export default function IjaraCalculator() {
           leaseTermYears: termYears,
           residualValuePercent: residualPercent,
         }}
-        results={{ monthlyPayment, totalPaid, totalRent, downAmount, financed, residualValue }}
+        results={{ monthlyPayment, totalPaid, totalRent, totalProfit: totalRent, downAmount, financed, residualValue, amortizationSchedule: rows }}
       />
+      {valid && hasCalculated ? (
+        <ActionBar
+          dealType="Ijara"
+          vaultDealCount={vaultDeals.length}
+          inputs={{
+            propertyPrice,
+            downPaymentPercent,
+            ijaraRate: rate,
+            leaseTermYears: termYears,
+            residualValuePercent: residualPercent,
+          }}
+          results={{ monthlyPayment, totalPaid, totalRent, totalProfit: totalRent, yield: rate, downAmount, financed, residualValue, amortizationSchedule: rows }}
+        />
+      ) : null}
     </div>
   );
 }

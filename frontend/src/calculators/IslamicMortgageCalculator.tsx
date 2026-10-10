@@ -1,6 +1,8 @@
 import { useMemo, useState, type FormEvent } from "react";
 import SaveCalculationButton from "../components/SaveCalculationButton";
 import { useLicense } from "../hooks/useLicense";
+import ActionBar from "../features/phase18/components/ActionBar";
+import { useVault } from "../features/phase18/hooks/useVault";
 
 type FinanceType = "Murabaha" | "Diminishing Musharakah" | "Ijara";
 type PaymentRow = {
@@ -33,6 +35,7 @@ function buildSchedule(principal: number, annualRatePercent: number, years: numb
 
 export default function IslamicMortgageCalculator() {
   const { consumeFreeCalculation, freeCalculationsUsed, tier } = useLicense();
+  const { deals: vaultDeals } = useVault();
   const freeLimitReached = tier === "free" && freeCalculationsUsed >= 1;
   const [hasCalculated, setHasCalculated] = useState(false);
   const [propertyPrice, setPropertyPrice] = useState("300000");
@@ -141,6 +144,14 @@ export default function IslamicMortgageCalculator() {
         results={results}
         disabled={!valid || (tier === "free" && !hasCalculated)}
       />
+      {valid && hasCalculated ? (
+        <ActionBar
+          dealType="Islamic Mortgage"
+          vaultDealCount={vaultDeals.length}
+          inputs={inputs}
+          results={{ ...results, totalProfit, totalProfitOrRent: totalProfit, yield: rate }}
+        />
+      ) : null}
     </div>
   );
 }

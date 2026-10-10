@@ -1,5 +1,7 @@
 import { useMemo, useState, type FormEvent } from "react";
 import SaveCalculationButton from "../components/SaveCalculationButton";
+import ActionBar from "../features/phase18/components/ActionBar";
+import { useVault } from "../features/phase18/hooks/useVault";
 
 const money = new Intl.NumberFormat("en-US", {
   minimumFractionDigits: 2,
@@ -7,6 +9,7 @@ const money = new Intl.NumberFormat("en-US", {
 });
 
 export default function MudarabaCalculator() {
+  const { deals: vaultDeals } = useVault();
   const [capital, setCapital] = useState("100000");
   const [netProfit, setNetProfit] = useState("20000");
   const [investorSharePercent, setInvestorSharePercent] = useState("60");
@@ -109,6 +112,14 @@ export default function MudarabaCalculator() {
         results={results}
         disabled={!valid || !calculated}
       />
+      {valid && calculated ? (
+        <ActionBar
+          dealType="Mudaraba"
+          vaultDealCount={vaultDeals.length}
+          inputs={inputs}
+          results={{ ...results, totalProfit: profitValue, yield: capitalValue ? profitValue / capitalValue * 100 : 0 }}
+        />
+      ) : null}
     </div>
   );
 }

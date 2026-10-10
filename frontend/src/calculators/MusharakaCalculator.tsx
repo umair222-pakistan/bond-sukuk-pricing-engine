@@ -1,6 +1,8 @@
 import { useMemo, useState, type FormEvent } from "react";
 import { saveCalculation } from "./history";
 import SaveCalculationButton from "../components/SaveCalculationButton";
+import ActionBar from "../features/phase18/components/ActionBar";
+import { useVault } from "../features/phase18/hooks/useVault";
 
 type Inputs = {
   totalProjectCost: string;
@@ -65,6 +67,7 @@ function buildOwnershipYears(bankInvestment: number, projectCost: number, tenure
 }
 
 export default function MusharakaCalculator() {
+  const { deals: vaultDeals } = useVault();
   const [inputs, setInputs] = useState<Inputs>(initialInputs);
   const [error, setError] = useState<string | null>(null);
   const projectCost = Number(inputs.totalProjectCost);
@@ -311,8 +314,38 @@ export default function MusharakaCalculator() {
           monthlyBuyout,
           bankRoe,
           customerRoe,
+          ownershipSchedule: years,
         }}
       />
+      {valid ? (
+        <ActionBar
+          dealType="Musharaka"
+          vaultDealCount={vaultDeals.length}
+          inputs={{
+            totalProjectCost: projectCost,
+            bankContributionPercent,
+            customerContributionPercent: customerContribution,
+            expectedAnnualProfitPercent: annualProfitPercent,
+            bankProfitSharePercent: bankSharingPercent,
+            customerProfitSharePercent: customerSharingPercent,
+            tenureYears: tenure,
+          }}
+          results={{
+            bankInvestment,
+            customerInvestment,
+            annualProfit,
+            totalProfit: annualProfit,
+            bankProfit,
+            customerProfit,
+            monthlyPayment: monthlyBuyout,
+            monthlyBuyout,
+            yield: bankRoe,
+            bankRoe,
+            customerRoe,
+            ownershipSchedule: years,
+          }}
+        />
+      ) : null}
     </div>
   );
 }

@@ -2,6 +2,8 @@ import { useState, type FormEvent } from "react";
 import { saveCalculation } from "./history";
 import SaveCalculationButton from "../components/SaveCalculationButton";
 import { useLicense } from "../hooks/useLicense";
+import ActionBar from "../features/phase18/components/ActionBar";
+import { useVault } from "../features/phase18/hooks/useVault";
 
 type ZakatInputs = {
   goldValue: string;
@@ -36,6 +38,7 @@ const assetFields: { key: keyof ZakatInputs; label: string }[] = [
 
 export default function ZakatCalculator() {
   const { consumeFreeCalculation, freeCalculationsUsed, tier } = useLicense();
+  const { deals: vaultDeals } = useVault();
   const freeLimitReached = tier === "free" && freeCalculationsUsed >= 1;
   const [hasCalculated, setHasCalculated] = useState(false);
   const [inputs, setInputs] = useState<ZakatInputs>(initialInputs);
@@ -181,6 +184,14 @@ export default function ZakatCalculator() {
         inputs={Object.fromEntries(Object.entries(inputs).map(([key, value]) => [key, Number(value)]))}
         results={{ nisab, zakatableWealth, zakatPayable, eligible: isEligible }}
       />
+      {valid && hasCalculated ? (
+        <ActionBar
+          dealType="Zakat"
+          vaultDealCount={vaultDeals.length}
+          inputs={Object.fromEntries(Object.entries(inputs).map(([key, value]) => [key, Number(value)]))}
+          results={{ nisab, zakatableWealth, zakatPayable, eligible: isEligible, totalProfit: zakatPayable }}
+        />
+      ) : null}
     </div>
   );
 }

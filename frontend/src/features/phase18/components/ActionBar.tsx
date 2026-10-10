@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useVault, type VaultDeal, COMPARE_STORAGE_KEY } from "../hooks/useVault";
 import { generateDealPDF } from "../utils/pdfGenerator";
 
@@ -6,9 +7,11 @@ type Props = {
   dealType: string;
   inputs: Record<string, unknown>;
   results: Record<string, unknown>;
+  vaultDealCount: number;
 };
 
-export default function ActionBar({ dealType, inputs, results }: Props) {
+export default function ActionBar({ dealType, inputs, results, vaultDealCount }: Props) {
+  const navigate = useNavigate();
   const { saveDeal, setShareToken } = useVault();
   const [savedDeal, setSavedDeal] = useState<VaultDeal | null>(null);
   const [message, setMessage] = useState<string | null>(null);
@@ -73,6 +76,7 @@ export default function ActionBar({ dealType, inputs, results }: Props) {
       const compareIds = parsed as string[];
       if (compareIds.includes(deal.id)) {
         setMessage("This deal is already in your comparison.");
+        navigate(`/compare?ids=${encodeURIComponent(compareIds.join(","))}`);
         return;
       }
       if (compareIds.length >= 3) {
@@ -81,6 +85,7 @@ export default function ActionBar({ dealType, inputs, results }: Props) {
       }
       window.localStorage.setItem(COMPARE_STORAGE_KEY, JSON.stringify([...compareIds, deal.id]));
       setMessage("Added to comparison in your vault.");
+      navigate(`/compare?ids=${encodeURIComponent([...compareIds, deal.id].join(","))}`);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Unable to add this deal to comparison.");
     }
@@ -94,6 +99,7 @@ export default function ActionBar({ dealType, inputs, results }: Props) {
         <button type="button" onClick={() => void handleShare()}>Share Link</button>
         <button type="button" onClick={handleCompare}>Compare</button>
       </div>
+      <p>{vaultDealCount} deal{vaultDealCount === 1 ? "" : "s"} in your local vault.</p>
       {message ? <p role="status">{message}</p> : null}
       {error ? <p role="alert" style={{ color: "#a32020" }}>{error}</p> : null}
     </div>
