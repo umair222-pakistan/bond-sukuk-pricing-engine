@@ -56,18 +56,16 @@ def _request_json(request: Request, *, log_result: bool = False) -> object:
             body = response.read()
     except HTTPError as exc:
         error_body = exc.read().decode("utf-8", errors="replace")
-        if log_result:
-            print(
-                "Supabase result:",
-                None,
-                {"status": exc.code, "error": error_body},
-            )
+        print(
+            "Supabase result:",
+            None,
+            {"status": exc.code, "error": error_body},
+        )
         if exc.code in (401, 403):
             raise LicenseServiceError("Authentication failed.") from exc
         raise LicenseServiceError("License service request failed.") from exc
     except (TimeoutError, URLError) as exc:
-        if log_result:
-            print("Supabase result:", None, str(exc))
+        print("Supabase request failed:", str(exc))
         raise LicenseServiceError("License service is temporarily unavailable.") from exc
 
     if not body:
@@ -198,7 +196,7 @@ def active_license_for_email(email: str) -> bool:
     return False
 
 
-def activate_license(access_token: str, license_key: str) -> str:
+def activate_license(access_token: str, license_key: str) -> tuple[str, str]:
     user_id, email = authenticated_user(access_token)
     license_key = license_key.strip().upper()
     print("Activate attempt:", email, license_key)
@@ -225,6 +223,9 @@ def activate_license(access_token: str, license_key: str) -> str:
 
     license_record = rows[0]
     assigned_user_id = license_record.get("user_id")
+    plan = license_record.get("plan")
+    if not isinstance(plan, str):
+        raise LicenseServiceError("License record has no plan.")
     if assigned_user_id is not None and assigned_user_id != user_id:
         raise LicenseServiceError("License key is invalid or inactive.")
 
@@ -258,7 +259,7 @@ def activate_license(access_token: str, license_key: str) -> str:
         ):
             raise LicenseServiceError("License key is invalid or inactive.")
 
-    return email
+    return email, plan
 
 
 def active_profile_for_user(user_id: str) -> bool:
