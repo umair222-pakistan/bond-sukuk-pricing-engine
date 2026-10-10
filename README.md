@@ -62,12 +62,12 @@ Auth account before its profile is updated.
    outputs `dist/`; Vercel discovers the Python functions under `frontend/api/`
    and the shared `frontend/license_service.py` module.
 4. In Lemon Squeezy, create a webhook pointing to
-   `https://noorfinance.vercel.app/api/webhook/lemonsqueezy`, using the same
+   `https://noorfinance.vercel.app/api/webhooks/lemonsqueezy`, using the same
    signing secret as `LEMONSQUEEZY_WEBHOOK_SECRET`. Subscribe to
    `order_created`, `order_refunded`, `subscription_created`,
    `subscription_updated`, `subscription_cancelled`, `subscription_expired`,
-   `license_key_created`, and `license_key_updated`. Enable license keys for
-   products if license-key events are used.
+   `subscription_paused`, `subscription_resumed`, and
+   `subscription_unpaused`.
 5. Set the successful checkout redirect to
    `https://noorfinance.vercel.app/activate` without license or email query
    parameters. The customer must complete checkout using the same email as
@@ -76,10 +76,14 @@ Auth account before its profile is updated.
 The frontend checks `GET /api/license/verify` with the current Supabase access
 token. For paid order and subscription events, the webhook updates the matching
 profile to the Basic plan and upserts the payment record by Lemon Squeezy event
-ID using the Supabase service-role key. The checkout sends the signed webhook
-both the authenticated user ID and email; the webhook verifies that their
-emails match when the user ID is present. Local development of these Vercel
-functions requires the Vercel CLI (`vercel dev`) from the repository root.
+ID using the Supabase service-role key. Profiles are matched against the
+verified purchaser email in the signed webhook. Local development of these
+Vercel functions requires the Vercel CLI (`vercel dev`) from the repository root.
+
+The webhook handler lives in the repository-root `api/` directory. The existing
+Vercel setup uses `frontend` as its Root Directory, so deploy this handler only
+after configuring Vercel to include the repository-root API function; otherwise
+the SPA rewrite may serve the frontend instead of the webhook.
 
 This repository is a Vite app with Vercel Python functions, not a Next.js
 App Router project. Frontend variables therefore use the `VITE_` prefix;
