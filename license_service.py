@@ -13,7 +13,10 @@ class LicenseServiceError(Exception):
 
 
 def _settings() -> tuple[str, str, str]:
-    supabase_url = os.environ.get("SUPABASE_URL", "").rstrip("/")
+    supabase_url = (
+        os.environ.get("SUPABASE_URL")
+        or os.environ.get("NEXT_PUBLIC_SUPABASE_URL", "")
+    ).rstrip("/")
     anon_key = os.environ.get("SUPABASE_ANON_KEY", "")
     service_role_key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY", "")
     if not supabase_url or not service_role_key:
@@ -47,24 +50,40 @@ def configured_product_plans() -> dict[str, str]:
     return plans
 
 
-def _request_json(request: Request) -> object:
+def _request_json(request: Request, *, log_result: bool = False) -> object:
     try:
         with urlopen(request, timeout=10) as response:
             body = response.read()
     except HTTPError as exc:
+        error_body = exc.read().decode("utf-8", errors="replace")
+        if log_result:
+            print(
+                "Supabase result:",
+                None,
+                {"status": exc.code, "error": error_body},
+            )
         if exc.code in (401, 403):
             raise LicenseServiceError("Authentication failed.") from exc
         raise LicenseServiceError("License service request failed.") from exc
     except (TimeoutError, URLError) as exc:
+        if log_result:
+            print("Supabase result:", None, str(exc))
         raise LicenseServiceError("License service is temporarily unavailable.") from exc
 
     if not body:
+        if log_result:
+            print("Supabase result:", None, None)
         return None
 
     try:
-        return json.loads(body)
+        data = json.loads(body)
     except (json.JSONDecodeError, UnicodeDecodeError) as exc:
+        if log_result:
+            print("Supabase result:", None, str(exc))
         raise LicenseServiceError("License service returned an invalid response.") from exc
+    if log_result:
+        print("Supabase result:", data, None)
+    return data
 
 
 def authenticated_user(access_token: str) -> tuple[str, str]:
@@ -180,15 +199,15 @@ def active_license_for_email(email: str) -> bool:
 
 
 def activate_license(access_token: str, license_key: str) -> str:
-    _, email = authenticated_user(access_token)
-    print("Activating", email, license_key)
+    user_id, email = authenticated_user(access_token)
+    license_key = license_key.strip().upper()
+    print("Activate attempt:", email, license_key)
     supabase_url, _, service_role_key = _settings()
     query = urlencode(
         {
-            "license_key": f"ilike.{license_key}",
-            "email": f"ilike.{email}",
+            "license_key": f"eq.{license_key}",
             "status": "eq.active",
-            "select": "email,license_key",
+            "select": "*",
             "limit": "2",
         }
     )
@@ -200,20 +219,44 @@ def activate_license(access_token: str, license_key: str) -> str:
             "Accept": "application/json",
         },
     )
-    rows = _request_json(request)
+    rows = _request_json(request, log_result=True)
     if not isinstance(rows, list) or len(rows) != 1 or not isinstance(rows[0], dict):
         raise LicenseServiceError("License key is invalid or inactive.")
 
     license_record = rows[0]
-    license_email = license_record.get("email")
-    stored_license_key = license_record.get("license_key")
-    if (
-        not isinstance(license_email, str)
-        or license_email.strip().lower() != email
-        or not isinstance(stored_license_key, str)
-        or stored_license_key.strip().upper() != license_key
-    ):
+    assigned_user_id = license_record.get("user_id")
+    if assigned_user_id is not None and assigned_user_id != user_id:
         raise LicenseServiceError("License key is invalid or inactive.")
+
+    if assigned_user_id is None:
+        update_query = urlencode(
+            {
+                "license_key": f"eq.{license_key}",
+                "status": "eq.active",
+                "user_id": "is.null",
+                "select": "user_id",
+            }
+        )
+        update_request = Request(
+            f"{supabase_url}/rest/v1/licenses?{update_query}",
+            data=json.dumps({"user_id": user_id}).encode("utf-8"),
+            headers={
+                "apikey": service_role_key,
+                "Authorization": f"Bearer {service_role_key}",
+                "Accept": "application/json",
+                "Content-Type": "application/json",
+                "Prefer": "return=representation",
+            },
+            method="PATCH",
+        )
+        updated_rows = _request_json(update_request, log_result=True)
+        if (
+            not isinstance(updated_rows, list)
+            or len(updated_rows) != 1
+            or not isinstance(updated_rows[0], dict)
+            or updated_rows[0].get("user_id") != user_id
+        ):
+            raise LicenseServiceError("License key is invalid or inactive.")
 
     return email
 

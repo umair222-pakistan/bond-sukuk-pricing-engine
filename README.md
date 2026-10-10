@@ -45,20 +45,23 @@ parameter. Checkout user ID and email must match the corresponding Supabase
 Auth account before its profile is updated.
 
 1. Apply the Supabase migrations in timestamp order, including
-   `20261009210000_profiles_signup_and_payment_orders.sql`. This migration
-   creates the signup profile trigger and the service-role-only `licenses`
-   order table.
+   `20261009210000_profiles_signup_and_payment_orders.sql`,
+   `20261010110000_license_key_activation.sql`, and
+   `20261010120000_license_user_binding.sql`. These migrations provision the
+   `licenses` table for license keys and bind activated keys to a Supabase user.
 2. Set these server-side Vercel environment variables for every deployed
    environment:
    - `SUPABASE_URL`
    - `SUPABASE_ANON_KEY`
-   - `SUPABASE_SERVICE_ROLE_KEY` (server-side only; never use a `VITE_` prefix)
+   - `SUPABASE_SERVICE_ROLE_KEY` (required for license lookup and update;
+     server-side only; never use a `VITE_` prefix)
    - `LEMONSQUEEZY_WEBHOOK_SECRET`
    - `RESEND_API_KEY` (server-side key for sending issued license keys)
    - `LEMONSQUEEZY_PRODUCT_IDS` (comma-separated product IDs allowed for
      license-key webhooks)
    - Optionally set `LEMONSQUEEZY_ALLOW_TEST_MODE=true` only on a non-production
      deployment to accept test-mode license events. Production ignores them.
+   Redeploy after changing environment variables.
 3. In Vercel, set the project **Root Directory** to `frontend`. The Vite build
    outputs `dist/`; Vercel discovers the Python functions under `frontend/api/`
    and the shared `frontend/license_service.py` module.
