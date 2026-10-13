@@ -6,6 +6,11 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field, field_validator
 
+try:
+    from backend.v2 import security as v2_security
+except ImportError:  # started from inside backend/ (render.yaml: uvicorn main:app)
+    from v2 import security as v2_security
+
 app = FastAPI(
     title="Bond & Sukuk Pricing Engine",
     version="1.0.0",
@@ -18,8 +23,9 @@ app.add_middleware(
         "https://noorfinance.vercel.app",
         "http://localhost:5173",
         "http://127.0.0.1:5173",
-        "*",
+        *v2_security.extra_cors_origins(),
     ],
+    expose_headers=["X-Request-ID", "X-Audit-ID", "X-RateLimit-Limit", "X-RateLimit-Remaining", "X-RateLimit-Reset"],
     allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -226,7 +232,8 @@ YIELD_CURVE = [
 
 @app.get("/api/health")
 def health() -> dict:
-    return {"status": "ok"}
+    # Superset of the original {"status": "ok"}; V2 fields are additive.
+    return v2_security.health_payload()
 
 
 @app.get("/health")
@@ -298,3 +305,13 @@ def yield_curve() -> dict:
         "source": "illustrative par government curve",
         "points": YIELD_CURVE,
     }
+
+
+# V2 layer (additive): mounted last so no V1 route is affected.
+try:
+    from backend.v2.router import router as v2_router
+except ImportError:  # started from inside backend/ (render.yaml: uvicorn main:app)
+    from v2.router import router as v2_router
+
+app.include_router(v2_router)
+v2_security.install(app)  # request IDs, rate limiting, access logs (innermost, inside CORS)
